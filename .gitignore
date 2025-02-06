@@ -3,3 +3,4 @@ Data/*
 Model/*
 Training/*
 coqui-tts
+/DAE/noisereduce/*
