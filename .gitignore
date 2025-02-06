@@ -1,0 +1,6 @@
+/.vscode
+Data/*
+Model/*
+pathnirvana
+Training/*
+coqui-tts
