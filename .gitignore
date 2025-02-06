@@ -4,3 +4,5 @@ Model/*
 Training/*
 coqui-tts
 DAE/noisereduce/*
+DAE/Clean Data/*
+DAE/Noisy Data/*
