@@ -38,7 +38,7 @@ def main():
     SKIP_TRAIN_EPOCH = False
 
     # Set here the batch size to be used in training and evaluation
-    BATCH_SIZE = 6
+    BATCH_SIZE = 10
 
     # Training Sampling rate and the target sampling rate for resampling the downloaded dataset (Note: If you change this you might need to redownload the dataset !!)
     # Note: If you add new datasets, please make sure that the dataset sampling rate and this parameter are matching, otherwise resample your audios
@@ -48,7 +48,7 @@ def main():
     MAX_AUDIO_LEN_IN_SECONDS = 10
 
     ### Download VCTK dataset
-    VCTK_DOWNLOAD_PATH = "E:/UOM/FYP/TTSx/Data/VCTK-Corpus-0.92"
+    VCTK_DOWNLOAD_PATH = "E:/UOM/FYP/TTSx/Data/VCTK-Corpus-0.92_formatted"
 
     # Define the number of threads used during the audio resampling
     NUM_RESAMPLE_THREADS = 10
@@ -70,15 +70,8 @@ def main():
         ignored_speakers=[
             "p261",
             "p225",
-            "p294",
-            "p347",
-            "p238",
-            "p234",
-            "p248",
-            "p335",
-            "p245",
-            "p326",
-            "p302",
+            "p239",
+            "p251",
         ],  # Ignore the test speakers to full replicate the paper experiment
     )
 
@@ -196,7 +189,7 @@ def main():
         test_sentences=[
             [
                 "It took me quite a long time to develop a voice, and now that I have it I'm not going to be silent.",
-                "VCTK_p277",
+                "VCTK_p266",
                 None,
                 "en",
             ],
@@ -220,7 +213,7 @@ def main():
             ],
             [
                 "Prior to November 22, 1963.",
-                "VCTK_p305",
+                "VCTK_p243",
                 None,
                 "en",
             ],

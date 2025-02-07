@@ -3,7 +3,7 @@ from scipy.io import wavfile
 import numpy as np
 
 # Load the noisy audio file
-rate, data = wavfile.read("E:/UOM/FYP/TTSx/tts_output.wav")
+rate, data = wavfile.read("E:/UOM/FYP/TTSx/Safnas3.wav")
 
 # Apply noise reduction with optimized parameters
 reduced_noise = nr.reduce_noise(
@@ -23,6 +23,6 @@ reduced_noise = nr.reduce_noise(
 increased_volume = reduced_noise * 1.3
 
 # Save the processed audio file with increased volume
-wavfile.write("C:/Users/Acer/Desktop/denoised_audio.wav", rate, increased_volume.astype(data.dtype))
+wavfile.write("E:/UOM/FYP/TTSx/DAE/denoised_audio.wav", rate, increased_volume.astype(data.dtype))
 
 print("Denoised audio saved successfully.")
