@@ -1,8 +1,18 @@
-/.vscode
+# Ignore everything inside Data, Model, and Training
 Data/*
 Model/*
 Training/*
-coqui-tts
+
+# But keep the folders themselves
+!Data/.gitkeep
+!Model/.gitkeep
+!Training/.gitkeep
+
+# Ignore specific DAE directories
 DAE/noisereduce/*
 DAE/Clean Data/*
 DAE/Noisy Data/*
+
+# Keep the other folders tracked
+!.vscode
+!coqui-tts
