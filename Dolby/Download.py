@@ -1,0 +1,23 @@
+import os
+import shutil
+import requests
+
+output_path = "E:/UOM/FYP/TTSx/enhanced.wav"
+
+url = "https://api.dolby.com/media/output"
+headers = {
+    "Authorization": "Bearer {0}".format("eyJ0eXAiOiJKV1QiLCJraWQiOiI1ODExQjE0RS1DQzVCLTQ4QkQtQTNEOC1DREQxQzUzQ0ZDNUMiLCJhbGciOiJSUzUxMiJ9.eyJpc3MiOiJkb2xieS5pbyIsImlhdCI6MTczOTIwMTczMSwic3ViIjoicWU4WkFYYURZVkFCVzRQc2Y1TFJJQT09IiwiYXV0aG9yaXRpZXMiOlsiUk9MRV9DVVNUT01FUiJdLCJ0YXJnZXQiOiJhcGkiLCJvaWQiOiIwMjdiZmVkNC00Yzg1LTQxOGYtOWRkMC04ZGYyOTA1YzEyNDQiLCJhaWQiOiJmYjYxNjRlNi03NGExLTQ1NjAtYjE5NS04OTEwZjMyZjNmMzgiLCJiaWQiOiI4YTM2OTZhNjk0ZGFjNjMwMDE5NGYwNjRiZjI1NjNiNCIsImV4cCI6MTczOTIwMzUzMX0.HfmPsQj6ymk_vYyWIrqTSebeNrIVfqha2UE9DlojTgsfZveqTeQ-_1CWX5nA9e2Ct-5Esa41hJPBM8Oc6azpxQCy0WepziHzs7YMGXG8BGgtsHFQXIDdkVSLByVgwkl7LmxYEYJUhgJoc26eq1mz-jVUmMBh_oFqzK3bwFgpwrwPPnfr8qjPez_Jj0sMc2hf_pTgd366EhfDic87BhF9oxrrT84C79xso8tIfCchxiKn6b7VKAu6BabfhfiBpq83zkea0TYCKYWa1NS8PRw4swk2_QnmoLCVlBMqyPhy9PaEwsrAmWaxMvfaFEX7IOC9TnrjmwF3Kt8ATRXROYH5GQ0zctI44DaBuu7BxH_skmshzwhRo36Jdp7_CJxJ8Xew_DYDSTtNCPPT1zK7JJEkogYdOCbrFtvABf-eAoYdNkI06LrXEUG-XxOxIVctyznK38St7BJGocOW7TMoIz9tPeOmYbM5sYcrd21OYsFISZV2o4zLzI9Fsfb9bCRcaBjATCkqt8h4vY18I8hZ3hBm5rr8fNDq2rP2YPubVjBNl6ahZy1aWnDsmkeCut-v0u_7spjurvE0Xnn5vb2D_Lxj2SvoujtJWjOPSm80SiiUHi3EGf232MkCJHo_4465fR-eSt-KKLMTue-94aJnPozukiPZDrkbcjtSmYl935nYHvc"),
+    "Content-Type": "application/json",
+    "Accept": "application/json"
+}
+
+args = {
+    "url": "dlb://out/example-enhanced.mp4",
+}
+
+with requests.get(url, params=args, headers=headers, stream=True) as response:
+    response.raise_for_status()
+    response.raw.decode_content = True
+    print("Downloading from {0} into {1}".format(response.url, output_path))
+    with open(output_path, "wb") as output_file:
+        shutil.copyfileobj(response.raw, output_file)

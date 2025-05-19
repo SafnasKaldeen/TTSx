@@ -6,6 +6,9 @@ import re
 csv_path = "E:/UOM/FYP/TTSx/Data/Recording/combined_text.csv"
 df = pd.read_csv(csv_path, sep="|", header=None, names=["text"], dtype=str)  # Ensuring text format
 
+# Shuffle the data first
+df = df.sample(frac=1, random_state=42).reset_index(drop=True)  # Shuffle the data
+
 # Function to count words in a sentence (ignoring punctuation, using whitespace)
 def word_count(sentence):
     cleaned_sentence = re.sub(r"[^\w\s]", "", str(sentence))  # Remove punctuation/symbols

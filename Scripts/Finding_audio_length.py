@@ -4,29 +4,44 @@ import tqdm
 import os
 
 def get_total_audio_length(folder_path):
-    """Calculate the total duration of audio files in a folder."""
+    """Calculate total duration of .wav audio files in a folder and log any failures."""
     folder = Path(folder_path)
     total_duration = 0  # in seconds
+    failed_files = []
 
-    # Get all audio files in the folder
-    audio_files = list(folder.glob("*"))
-    
+    # Recursively get all .wav files
+    audio_files = list(folder.rglob("*.wav"))
+
     if not audio_files:
-        print("No audio files found in the specified folder.")
+        print("No .wav audio files found in the specified folder.")
         return 0
 
-    print(f"Found {len(audio_files)} audio files. Calculating total duration...")
+    print(f"Found {len(audio_files)} .wav files. Calculating total duration...")
 
-    # Use tqdm for a progress bar
     for audio_file in tqdm.tqdm(audio_files, desc="Processing Files", unit="file"):
         try:
-            # Get metadata of the audio file
+            if not audio_file.exists():
+                print(f"File not found: {audio_file}")
+                failed_files.append(str(audio_file))
+                continue
+
             info = mediainfo(audio_file)
-            total_duration += float(info.get("duration", 0))
+            duration = float(info.get("duration", 0))
+            total_duration += duration
+
         except Exception as e:
             print(f"Could not process {audio_file}: {e}")
+            failed_files.append(str(audio_file))
 
-    print(f"Total duration: {total_duration / 3600:.2f} hours")
+    # # Log failed files if any
+    # if failed_files:
+    #     failed_log_path = folder / "failed_audio_files.txt"
+    #     with open(failed_log_path, "w", encoding="utf-8") as f:
+    #         f.write("\n".join(failed_files))
+    #     print(f"\n⚠️ {len(failed_files)} files could not be processed. Details saved to: {failed_log_path}")
+
+    total_hours = total_duration / 3600
+    print(f"\n✅ Total duration: {total_hours:.2f} hours")
     return total_duration
 
 if __name__ == "__main__":
@@ -34,4 +49,4 @@ if __name__ == "__main__":
     if os.path.exists(folder_path):
         get_total_audio_length(folder_path)
     else:
-        print("The specified folder path does not exist.")
+        print("❌ The specified folder path does not exist.")

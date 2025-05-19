@@ -12,7 +12,3 @@ Training/*
 DAE/noisereduce/*
 DAE/Clean Data/*
 DAE/Noisy Data/*
-
-# Keep the other folders tracked
-!.vscode
-!coqui-tts

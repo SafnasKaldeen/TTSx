@@ -1,16 +1,14 @@
-import os
-import pandas as pd
+import re
+import logging
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from tqdm import tqdm
-import re
-import logging
+from datetime import datetime
 
 # Set up logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
 # Sinhala month mapping
 SINHALA_MONTHS = {
@@ -33,12 +31,12 @@ def contains_date_or_time(text):
     Checks if the given text includes any valid date or time patterns.
     """
     date_patterns = [
-        r'\b\d{4}-\d{2}-\d{2}\b',  # YYYY-MM-DD
-        r'\b\d{2}-\d{2}-\d{4}\b',  # DD-MM-YYYY
-        r'\b\d{2}/\d{2}/\d{4}\b',  # DD/MM/YYYY
-        r'\b\d{4}/\d{2}/\d{2}\b',  # YYYY/MM/DD
-        r'\b\d{2}:\d{2}\b',        # HH:MM
-        r'\b\d{2}:\d{2}:\d{2}\b',  # HH:MM:SS
+        r"\b\d{4}-\d{2}-\d{2}\b",  # YYYY-MM-DD
+        r"\b\d{2}-\d{2}-\d{4}\b",  # DD-MM-YYYY
+        r"\b\d{2}/\d{2}/\d{4}\b",  # DD/MM/YYYY
+        r"\b\d{4}/\d{2}/\d{2}\b",  # YYYY/MM/DD
+        r"\b\d{2}:\d{2}\b",        # HH:MM
+        r"\b\d{2}:\d{2}:\d{2}\b",  # HH:MM:SS
     ]
     
     for pattern in date_patterns:
@@ -50,13 +48,11 @@ def map_month_to_sinhala(date_text):
     """
     Replaces the month in the date string with its Sinhala equivalent.
     """
-    # Adjusted regex to better capture date-time formats with both date and time
     patterns = [
-        r'(\d{4})-(\d{2})-(\d{2})',  # YYYY-MM-DD
-        r'(\d{2})-(\d{2})-(\d{4})',  # DD-MM-YYYY
-        r'(\d{4})/(\d{2})/(\d{2})',  # YYYY/MM/DD
-        r'(\d{2})/(\d{2})/(\d{4})',  # DD/MM/YYYY
-        r'(\d{4})/(\d{2})/(\d{2}) (\d{2}):(\d{2}):(\d{2})'  # YYYY/MM/DD HH:MM:SS
+        r"(\d{4})-(\d{2})-(\d{2})",  # YYYY-MM-DD
+        r"(\d{2})-(\d{2})-(\d{4})",  # DD-MM-YYYY
+        r"(\d{4})/(\d{2})/(\d{2})",  # YYYY/MM/DD
+        r"(\d{2})/(\d{2})/(\d{4})",  # DD/MM/YYYY
     ]
 
     for pattern in patterns:
@@ -65,80 +61,81 @@ def map_month_to_sinhala(date_text):
             parts = match.groups()
             year, month, day = None, None, None
             if len(parts) == 3:
-                if pattern.startswith(r'(\d{4})'):  # YYYY-MM-DD or YYYY/MM/DD
+                if pattern.startswith(r"(\d{4})"):  # YYYY-MM-DD or YYYY/MM/DD
                     year, month, day = parts[0], parts[1], parts[2]
                 else:  # DD-MM-YYYY or DD/MM/YYYY
                     day, month, year = parts[0], parts[1], parts[2]
-            elif len(parts) == 6:  # For the full datetime with time
-                year, month, day = parts[0], parts[1], parts[2]
-
-            # print(f'{year, month, day}')
 
             if month in SINHALA_MONTHS:
                 sinhala_month = SINHALA_MONTHS[month]
-
-                # print(date_text.replace('/', ' ').replace(':', ' ').replace(f'{year} {month} {day}' , f'{year} {sinhala_month} {day}'))
-                return date_text.replace('/', ' ').replace(':', ' ').replace(f'{year} {month} {day}' , f'{year} {sinhala_month} {day}')
+                return date_text.replace(f"{year}/{month}/{day}", f"{year} {sinhala_month} {day}").replace("/", " ").replace("-", " ")
     
     return date_text
 
-def normalize_sinhala_text(text):
+def normalize_sinhala_text(text, driver):
     """
-    Normalizes Sinhala text by:
-    - Replacing multiple spaces with a single space
-    - Removing unwanted symbols
-    - Retaining '/' and ':' if the text is a valid date or time, otherwise removing them
+    Normalizes Sinhala text:
+    - Replaces multiple spaces with a single space
+    - Removes unwanted symbols
+    - Retains '/' and ':' only if it's a valid date or time
     """
-    text = re.sub(r'\s+', ' ', text.strip())  # Replace multiple spaces
+    text = re.sub(r"\s+", " ", text.strip())  # Remove extra spaces
     unwanted_symbols = r'[!"#$%&*+;<=@\[\\\]^_`{|}~]'
-    text = re.sub(unwanted_symbols, ' ', text)
-    # print("roman contains date or time" , text)
-    if not contains_date_or_time(text):
-        text = text.replace('/', ' ').replace(':', ' ')  # Remove '/' and ':'
-    return text
+    text = re.sub(unwanted_symbols, " ", text)
 
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
+    if not contains_date_or_time(text):
+        text = text.replace("/", " ").replace(":", " ")
+
+    # Handle time conversion (HH:MM or HH:MM:SS format)
+    time_patterns = [r"(\d{2}):(\d{2}):(\d{2})", r"(\d{2}):(\d{2})"]
+    for pattern in time_patterns:
+        match = re.search(pattern, text)
+        if match:
+            time_parts = match.groups()
+            if len(time_parts) == 2:  # HH:MM format
+                hour, minute = time_parts
+                hour_sinhala = convert_number_to_sinhala(driver, hour)
+                minute_sinhala = convert_number_to_sinhala(driver, minute)
+                text = text.replace(f"{hour}:{minute}", f"පැය {hour_sinhala} විනාඩි {minute_sinhala}")
+            elif len(time_parts) == 3:  # HH:MM:SS format
+                hour, minute, second = time_parts
+                hour_sinhala = convert_number_to_sinhala(driver, hour)
+                minute_sinhala = convert_number_to_sinhala(driver, minute)
+                second_sinhala = convert_number_to_sinhala(driver, second)
+                text = text.replace(f"{hour}:{minute}:{second}", f"පැය {hour_sinhala} විනාඩි {minute_sinhala} තත්පර {second_sinhala}")
+
+    return text
 
 def convert_number_to_sinhala(driver, number):
     """
     Converts a number to Sinhala words using the TrackerDisk website.
     """
     try:
-        # Navigate to the conversion page
         driver.get("https://trackerdisk.com/calculators/conversions/numbers-to-sinhala-words")
 
-        # Wait for the input field to be visible
-        input_field = WebDriverWait(driver, 15).until(
-            EC.visibility_of_element_located((By.NAME, 'input-number'))
+        input_field = WebDriverWait(driver, 10).until(
+            EC.visibility_of_element_located((By.NAME, "input-number"))
         )
-        
-        # Enter the number to be converted
         input_field.clear()
         input_field.send_keys(str(number))
 
-        # Click the 'Convert' button
         convert_button = driver.find_element(By.CSS_SELECTOR, 'button[type="submit"]')
         convert_button.click()
 
-        # Wait for the output field to contain non-empty text
-        output_field = WebDriverWait(driver, 15).until(
-            EC.presence_of_element_located((By.ID, 'number-to-word'))
+        output_field = WebDriverWait(driver, 10).until(
+            EC.presence_of_element_located((By.ID, "number-to-word"))
         )
 
-        # Ensure output field is not empty by checking its text or value attribute
-        WebDriverWait(driver, 15).until(
+        WebDriverWait(driver, 10).until(
             lambda d: output_field.text.strip() or output_field.get_attribute("value").strip()
         )
 
-        # Extract the result
         sinhala_words = output_field.get_attribute("value") or output_field.text.strip()
         return sinhala_words
 
     except Exception as e:
         logging.error(f"Error converting number {number} to Sinhala words: {e}")
-        return None
+        return number  # Return original number if conversion fails
 
 def text_to_roman(driver, text):
     """
@@ -147,85 +144,73 @@ def text_to_roman(driver, text):
     try:
         driver.get("https://pitaka.lk/tools/converter.html")
         input_field = WebDriverWait(driver, 10).until(
-            EC.visibility_of_element_located((By.ID, 'box1'))
+            EC.visibility_of_element_located((By.ID, "box1"))
         )
-        output_field = driver.find_element(By.ID, 'box2')
+        output_field = driver.find_element(By.ID, "box2")
         input_field.clear()
         input_field.send_keys(text)
+
         convert_button = driver.find_element(By.CSS_SELECTOR, 'div#output-buttons a.button[script="ro"]')
         convert_button.click()
+
         result = output_field.get_attribute("value")
-        return result
+        return result if result else "Error"
+
     except Exception as e:
         logging.error(f"Error converting text to Roman: {text}\n{e}")
         return "Error"
 
 def preprocess_sinhala_text(driver, text):
     """
-    Preprocesses Sinhala text by handling date/time, converting numbers to Sinhala words,
-    converting to Roman script, and normalizing.
+    Preprocesses Sinhala text by:
+    - Handling dates and months in Sinhala
+    - Converting numbers to Sinhala words
+    - Normalizing text
+    - Converting to Roman script
     """
-    # Step 1: Handle date/time mappings
     if contains_date_or_time(text):
         text = map_month_to_sinhala(text)
 
-    # print("Text after date/time handling:", text)
+    # Time conversion: Keep HH:MM and force seconds to 23
+    text = re.sub(r"\b(\d{2}):(\d{2}):(\d{2})\b", lambda match: f"{match.group(1)}:{match.group(2)}:23", text)
 
-    # Step 4: Normalize the Romanized text
-    normalized_text = normalize_sinhala_text(text).replace('/', ' ').replace(':', ' ')
-    # print("normalized " ,normalized_text)
-    
-    numbers_in_text = re.findall(r'\b\d+\b', normalized_text)  # Find all standalone numbers
-    text = normalized_text
+    normalized_text = normalize_sinhala_text(text, driver)
+
+    numbers_in_text = re.findall(r"\b\d+\b", normalized_text)
     for number in numbers_in_text:
         sinhala_word = convert_number_to_sinhala(driver, number)
-        # print(sinhala_word)
         if sinhala_word:
-            text = text.replace(f" {number} ",f" {sinhala_word} ")  # Replace number with Sinhala equivalent
-            # print(text)
+            normalized_text = normalized_text.replace(f" {number} ", f" {sinhala_word} ")
 
-     # Step 3: Convert text to Roman script
-    roman_text = text_to_roman(driver, text)  
-  
-    # print("Text after number conversion:", roman_text)
+    roman_text = text_to_roman(driver, normalized_text)
+
+    # remove unwanted symbols except spaces, commas and full stops then collapse multiple spaces and trim
+    roman_text = re.sub(r"[^\w\s,.]", "", roman_text)
+    roman_text = re.sub(r"\s+", " ", roman_text).strip()
 
     return roman_text
 
-def process_csv(metadata_path, output_path):
+
+# Run single-line Sinhala text processing
+def process_sinhala_text(driver, input_text):
     """
-    Processes a CSV file, applies text preprocessing, and saves the output.
+    Runs the text preprocessing pipeline for a single Sinhala line.
     """
-    df = pd.read_csv(metadata_path, sep='|', header=None, names=["id", "transcription"])
-    cleaned_data = []
 
-    options = Options()
-    options.add_argument('--headless')
-    options.add_argument('--disable-gpu')
-    driver = webdriver.Chrome(options=options)
+    try:
+        processed_text = preprocess_sinhala_text(driver, input_text)
+    except Exception as e:
+        return f"Error: {e}"
 
-    print(preprocess_sinhala_text(driver, "සිවු වන සීනය 2024/12/06 12:54:23 සීනය සීනය/සීනය:"))
+    return processed_text
 
-    # try:
-    #     for _, row in tqdm(df.iterrows(), total=len(df), desc="Processing rows"):
-    #         original_text = row['transcription']
-    #         if pd.isna(original_text) or not original_text.strip():
-    #             logging.warning("Skipping empty row")
-    #             cleaned_data.append("Error")
-    #             continue
-    #         try:
-    #             cleaned_text = preprocess_sinhala_text(driver, original_text)
-    #         except Exception as e:
-    #             logging.error(f"Error processing text: {original_text}\n{e}")
-    #             cleaned_text = "Error"
-    #         cleaned_data.append(cleaned_text)
-    # finally:
-    #     driver.quit()
+options = Options()
+options.add_argument("--headless")
+options.add_argument("--disable-gpu")
 
-    df['cleaned_transcription'] = cleaned_data
-    df.to_csv(output_path, sep='|', index=False, header=False)
-    logging.info(f"Processed CSV saved to {output_path}")
+driver = webdriver.Chrome(options=options)
 
-if __name__ == "__main__":
-    metadata_file = "E:/UOM/FYP/TTSx/Data/OpeSLR/metadata.csv"
-    output_file = "E:/UOM/FYP/TTSx/Data/OpeSLR/processed_metadata.csv"
-    process_csv(metadata_file, output_file)
+# Example Usage
+input_text = "සිවු වන සීනය 2024/12/06 12:54:23 සීනය සීනය/සීනය:"
+output_text = process_sinhala_text(driver, input_text)
+print("Processed Text:", output_text)
