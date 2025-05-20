@@ -33,8 +33,8 @@ class TTSModel:
         """
         # self.model_path = f"E:/UOM/FYP/TTSx/Model/{self.speakerID}/best_model.pth"
         # self.config_path = f"E:/UOM/FYP/TTSx/Model/{self.speakerID}/config.json"
-        self.model_path = f"E:/UOM/FYP/TTSx/Model/LJ_BaseModel_Oshadi/best_model.pth"
-        self.config_path = f"E:/UOM/FYP/TTSx/Model/LJ_BaseModel_Oshadi/config.json"
+        self.model_path = f"E:/UOM/FYP/TTSx/Model/LJ_Dinithi/best_model.pth"
+        self.config_path = f"E:/UOM/FYP/TTSx/Model/LJ_Dinithi/config.json"
         self.out_path = f"E:/UOM/FYP/TTSx/UI/client/public/Audios/InitialInference.wav"
     
         try:

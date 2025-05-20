@@ -93,15 +93,15 @@ def normalize_sinhala_text(text, driver):
         if match:
             time_parts = match.groups()
             if len(time_parts) == 2:  # HH:MM format
-                hour, minute = time_parts
-                hour_sinhala = convert_number_to_sinhala(driver, hour)
-                minute_sinhala = convert_number_to_sinhala(driver, minute)
+                hour, minute = time_parts 
+                hour_sinhala = convert_number_to_sinhala(driver, hour) + 'යි'
+                minute_sinhala = convert_number_to_sinhala(driver, minute) + 'යි'
                 text = text.replace(f"{hour}:{minute}", f"පැය {hour_sinhala} විනාඩි {minute_sinhala}")
             elif len(time_parts) == 3:  # HH:MM:SS format
                 hour, minute, second = time_parts
-                hour_sinhala = convert_number_to_sinhala(driver, hour)
-                minute_sinhala = convert_number_to_sinhala(driver, minute)
-                second_sinhala = convert_number_to_sinhala(driver, second)
+                hour_sinhala = convert_number_to_sinhala(driver, hour) + 'යි'
+                minute_sinhala = convert_number_to_sinhala(driver, minute) + 'යි'
+                second_sinhala = convert_number_to_sinhala(driver, second) + 'යි'
                 text = text.replace(f"{hour}:{minute}:{second}", f"පැය {hour_sinhala} විනාඩි {minute_sinhala} තත්පර {second_sinhala}")
 
     return text

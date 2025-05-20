@@ -595,6 +595,7 @@ export function SinhalaTextToSpeech({
               </div>
 
               {/* Dynamic Audio Player with Waveform */}
+              <h1>{isDenoised ? audioUrl : audioRawUrl}</h1>
               <AudioPlayer
                 audioUrl={isDenoised ? audioUrl : audioRawUrl}
                 fileName={isDenoised ? "Enhanced Speech" : "Original Speech"}

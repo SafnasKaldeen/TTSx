@@ -1,6 +1,5 @@
 import { useState } from "react";
 import axios from "axios";
-import { time } from "console";
 
 interface TTSResult {
   audio_url: string;
@@ -47,23 +46,25 @@ export const useTTSProcessor = (): UseTTSProcessorResult => {
     setLoading(true);
     setError(null);
     setResult(null);
-    
+
     try {
       // Step 1: Preprocess
       setStatusStage("preprocessing");
       onProgress?.({ stage: "preprocessing" });
-      
-      const preprocessResponse = await axios.post("http://127.0.0.1:8000/api/preprocess", { text });
+
+      const preprocessResponse = await axios.post("http://127.0.0.1:8000/api/preprocess", {
+        text,
+      });
+
       const preprocessedText = preprocessResponse.data.processed_text;
       setPreprocessText(preprocessedText);
-      // alert("Preprocessed text: " + preprocessedText);
-      // Update status after preprocessing completes
-      onProgress?.({ 
-        stage: "preprocessing_complete", 
-        preprocessText: preprocessedText 
+
+      onProgress?.({
+        stage: "preprocessing_complete",
+        preprocessText: preprocessedText,
       });
-      
-      // Step 2: Infer TTS
+
+      // Step 2: Inference
       setStatusStage("synthesizing");
       onProgress?.({ stage: "synthesizing" });
 
@@ -72,47 +73,49 @@ export const useTTSProcessor = (): UseTTSProcessorResult => {
         speakerID: speakerID,
       });
 
-      var rawAudioUrl = ttsResponse.data.audio_path;
+      const rawAudioUrl = ttsResponse.data.audio_path;
       const processingTime = ttsResponse.data.processing_time;
-      // alert("Raw audio URL: " + rawAudioUrl);
-      // alert("Processing time: " + processingTime);
-      // Update status after synthesizing completes
+
       onProgress?.({
         stage: "synthesizing_complete",
         raw_audio_url: rawAudioUrl,
         processing_time: processingTime,
       });
-      
-      // Step 3: Clean Audio
+
+      // Step 3: Clean audio
       setStatusStage("cleaning");
       onProgress?.({ stage: "cleaning" });
-      
-      // const cleanResponse = await axios.post("http://localhost:8000/api/clean_audio", {
-      //   file_path: rawAudioUrl,
-      // });
 
-      // const cleanedAudioUrl = cleanResponse.data.download_path;
-      const cleanedAudioUrl = "/Audios/cleaned_audio.wav";
-      rawAudioUrl = "/Audios/InitialInference.wav"
-      // alert("Cleaned audio URL: " + cleanedAudioUrl);
-    
-      const finalResult: TTSResult = {
-        audio_url: cleanedAudioUrl,
-        raw_audio_url: rawAudioUrl,
-        processing_time: processingTime,
-        cleaned: true,
-      };
-
-      setResult(finalResult);
-      setStatusStage("complete");
-      onProgress?.({
-        stage: "complete",
-        audio_url: cleanedAudioUrl,
-        raw_audio_url: rawAudioUrl,
-        processing_time: processingTime,
+      const cleanResponse = await axios.post("http://localhost:8000/api/clean_audio", {
+        file_path: rawAudioUrl,
       });
+
+      if (cleanResponse.status === 200) {
+        const cleanedAudioUrl = "/Audios/cleaned_audio.wav";
+        const raw_audio_url = "/Audios/InitialInference.wav";
+        const processingTime = cleanResponse.data.processing_time;
+
+        const finalResult: TTSResult = {
+          audio_url: cleanedAudioUrl,
+          raw_audio_url: raw_audio_url,
+          processing_time: processingTime,
+          cleaned: true,
+        };
+
+        setResult(finalResult);
+        setStatusStage("complete");
+        onProgress?.({
+          stage: "complete",
+          audio_url: cleanedAudioUrl,
+          raw_audio_url: rawAudioUrl,
+          processing_time: processingTime,
+        });
+      } else {
+        throw new Error("Cleaning failed with non-200 response");
+      }
+
     } catch (err: any) {
-      const errorMsg = err?.response?.data?.message || "Something went wrong.";
+      const errorMsg = err?.response?.data?.message || err.message || "Something went wrong.";
       const errorStage = err?.response?.data?.status_stage || "error";
       console.error("TTS processing error:", err);
       setError(errorMsg);

@@ -2,10 +2,10 @@
 
 import type React from "react";
 
+import axios from "axios";
+
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Slider } from "@/components/ui/slider";
-import { Label } from "@/components/ui/label";
 import { AudioPlayer } from "@/components/audio-player";
 import {
   Mic,
@@ -28,7 +28,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-import useClone from "@/hooks/useClone";
+import { useAudioCloner } from "@/hooks/useAudioCloner";
 
 type RecordingState = "idle" | "recording" | "paused" | "processing" | "ready";
 
@@ -73,11 +73,13 @@ export function VoiceCloning({
   const [expandedSampleId, setExpandedSampleId] = useState<string | null>(null);
   const [isSecondSectionExpanded, setIsSecondSectionExpanded] = useState(true);
 
-  const [clonedAudioUrl, setClonedAudioUrl] = useState("/Cloned-Voice.wav"); // Demo audio for now
-  const [clonedAudioRawUrl, setClonedAudioRawUrl] =
-    useState("/Cloned-Voice.wav"); // Demo raw audio
+  const [clonedAudioUrl, setClonedAudioUrl] = useState(""); // Demo audio for now
+  const [clonedAudioRawUrl, setClonedAudioRawUrl] = useState(""); // Demo raw audio
   const [isDenoised, setIsDenoised] = useState<boolean>(true);
   const [voiceRating, setVoiceRating] = useState<number>(0);
+
+  const [referenceAudio, setReferenceAudio] = useState("");
+  const [targetAudio, setTargetAudio] = useState("");
 
   // Refs for file inputs and timers
   const fileInputRef1 = useRef<HTMLInputElement>(null);
@@ -87,14 +89,8 @@ export function VoiceCloning({
   const containerRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
 
-  const {
-    loading,
-    error,
-    cloneResult,
-    denoiseResult,
-    statusStage,
-    cloneAndDenoise,
-  } = useClone();
+  const { loading, error, result, statusStage, ReferenceAudio, cloneAudio } =
+    useAudioCloner();
 
   // Add a download function for cloned audio
   const handleDownloadClonedVoice = () => {
@@ -127,8 +123,26 @@ export function VoiceCloning({
     }
   }, [audioForCloning, onClearAudioForCloning, voiceCloned]);
 
+  // FRONTEND
+  const uploadAudioFile = async (file: File): Promise<string | null> => {
+    const formData = new FormData();
+    formData.append("audio", file);
+
+    try {
+      console.log("Uploading file:", file);
+      const response = await axios.post(
+        "http://localhost:8000/api/upload-audio",
+        formData
+      );
+      return response.data.file_path; // e.g. "/Audios/uploaded_audio.wav"
+    } catch (err) {
+      console.error("File upload failed:", err);
+      return null;
+    }
+  };
+
   // Handle file upload for first audio input
-  const handleFileUpload1 = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload1 = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       // Reset cloning state if already cloned
@@ -171,13 +185,16 @@ export function VoiceCloning({
     }
   };
 
-  // Trigger file input click
-  const triggerFileUpload1 = () => {
-    fileInputRef1.current?.click();
-  };
-
-  const triggerFileUpload2 = () => {
-    fileInputRef2.current?.click();
+  const uploadBase64Audio = async (audioUrl: string, filename: string) => {
+    const response = await fetch(audioUrl);
+    const blob = await response.blob();
+    const arrayBuffer = await blob.arrayBuffer();
+    const base64 = btoa(
+      new Uint8Array(arrayBuffer).reduce(
+        (data, byte) => data + String.fromCharCode(byte),
+        ""
+      )
+    );
   };
 
   // Start recording for first audio input
@@ -347,35 +364,167 @@ export function VoiceCloning({
     setExpandedSampleId(expandedSampleId === id ? null : id);
   };
 
-  // Clone voice with step-by-step animation
-  const cloneVoice = () => {
+  const triggerFileUpload1 = () => {
+    if (fileInputRef1.current) {
+      fileInputRef1.current.click();
+    }
+  };
+
+  const triggerFileUpload2 = () => {
+    if (fileInputRef2.current) {
+      fileInputRef2.current.click();
+    }
+  };
+
+  // Replace the cloneVoice function with this updated version that handles blob URLs
+  const cloneVoice = async () => {
     setIsCloning(true);
     setCloningStep(1);
 
-    // Simulate step 1: Audio analysis
-    setTimeout(() => {
-      setCloningStep(2);
+    try {
+      console.log("Starting voice cloning process...");
 
-      // Simulate step 2: Feature extraction
-      setTimeout(() => {
-        setCloningStep(3);
+      // Step 1: Handle reference audio (from first widget)
+      setCloningStep(1);
+      console.log("Step 1: Processing reference audio");
+      console.log("Current audioUrl1:", audioUrl1);
 
-        // Simulate step 3: Model training
-        setTimeout(() => {
+      if (!audioUrl1) {
+        throw new Error("No reference audio provided");
+      }
+
+      // Convert blob URL to File object
+      console.log("Fetching blob data from URL:", audioUrl1);
+      const referenceResponse = await fetch(audioUrl1);
+      const referenceBlob = await referenceResponse.blob();
+      const referenceFile = new File([referenceBlob], "reference-audio.wav", {
+        type: "audio/wav",
+      });
+      console.log("Created file object:", referenceFile);
+
+      // Upload the file to server
+      console.log("Uploading reference audio to server...");
+      const referenceFormData = new FormData();
+      referenceFormData.append("audio", referenceFile);
+
+      const referenceUploadResponse = await axios.post(
+        "/api/upload-audio",
+        referenceFormData,
+        {
+          headers: { "Content-Type": "multipart/form-data" },
+        }
+      );
+
+      const referenceAudioPath = referenceUploadResponse.data.file_path;
+      console.log(
+        "Reference audio uploaded successfully. Server path:",
+        referenceAudioPath
+      );
+
+      if (!referenceAudioPath) {
+        throw new Error("Failed to upload reference audio - no path returned");
+      }
+
+      // Step 2: Handle target audio (from second widget)
+      let targetAudioPath = null;
+
+      if (audioSamples.length > 0) {
+        setCloningStep(2);
+        console.log("Step 2: Processing target audio");
+
+        // Use the first audio sample as target
+        const targetSample = audioSamples[0];
+        console.log("Using target sample:", targetSample);
+
+        console.log("Fetching blob data from URL:", targetSample.url);
+        const targetResponse = await fetch(targetSample.url);
+        const targetBlob = await targetResponse.blob();
+        const targetFile = new File([targetBlob], "target-audio.wav", {
+          type: "audio/wav",
+        });
+        // console.log("Created file object:", targetFile);
+
+        // Upload the file to server
+        console.log("Uploading target audio to server...");
+        const targetFormData = new FormData();
+        targetFormData.append("audio", targetFile);
+
+        const targetUploadResponse = await axios.post(
+          "/api/upload-audio",
+          targetFormData,
+          {
+            headers: { "Content-Type": "multipart/form-data" },
+          }
+        );
+
+        targetAudioPath = targetUploadResponse.data.file_path;
+        console.log(
+          "Target audio uploaded successfully. Server path:",
+          targetAudioPath
+        );
+
+        if (!targetAudioPath) {
+          throw new Error("Failed to upload target audio - no path returned");
+        }
+      } else {
+        // If no target audio, use the reference audio as target too
+        console.log(
+          "No target audio samples found, using reference audio as target"
+        );
+        targetAudioPath = referenceAudioPath;
+      }
+
+      // Step 3: Clone the voice using the uploaded files
+      setCloningStep(3);
+      console.log("Step 3: Starting voice cloning with paths:", {
+        referenceAudioPath,
+        targetAudioPath,
+      });
+
+      await cloneAudio(referenceAudioPath, targetAudioPath, (progressData) => {
+        console.log("Cloning progress:", progressData);
+
+        if (progressData.stage === "cloning_complete") {
+          setCloningStep(3);
+          if (progressData.raw_audio_url) {
+            setClonedAudioRawUrl(progressData.raw_audio_url);
+            console.log("Raw audio URL set:", progressData.raw_audio_url);
+          }
+        }
+
+        if (progressData.stage === "complete") {
           setCloningStep(4);
+          console.log("Cloning complete!");
 
-          // Simulate step 4: Voice synthesis
-          setTimeout(() => {
-            setIsCloning(false);
-            setVoiceCloned(true);
-            setVoiceRating(0); // Reset rating for new clone
-            if (onVoiceCloned) {
-              onVoiceCloned();
-            }
-          }, 3000);
-        }, 3000);
-      }, 3000);
-    }, 3000);
+          if (progressData.cloned_audio_url) {
+            setClonedAudioUrl(progressData.cloned_audio_url);
+            console.log("Cloned audio URL set:", progressData.cloned_audio_url);
+          }
+
+          if (progressData.raw_audio_url) {
+            setClonedAudioRawUrl(progressData.raw_audio_url);
+            console.log("Raw audio URL set:", progressData.raw_audio_url);
+          }
+
+          setIsCloning(false);
+          setVoiceCloned(true);
+          setVoiceRating(0);
+
+          if (onVoiceCloned) {
+            onVoiceCloned();
+          }
+        }
+      });
+    } catch (error) {
+      console.error("Error during voice cloning:", error);
+      setIsCloning(false);
+      // Handle error display
+      alert(
+        `Cloning failed: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`
+      );
+    }
   };
 
   // Handle similarity slider change
@@ -438,6 +587,20 @@ export function VoiceCloning({
 
   const handleRatingChange = (value: number) => {
     setVoiceRating(value);
+  };
+
+  const handleAudioUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      // Construct a path or URL (for browser usage this would typically be a blob URL)
+      const fileURL = "E:/UOM/FYP/TTSx/UI/client/public/Audios/" + file.name;
+      setReferenceAudio(fileURL); // Store the path or URL
+
+      // Delay triggering audio cloning
+      setTimeout(() => {
+        // handleCloneAudio();
+      }, 15000); // 15 seconds delay
+    }
   };
 
   return (
@@ -999,77 +1162,6 @@ export function VoiceCloning({
               </div>
 
               <div className="space-y-2 mb-6">
-                <div className="flex justify-between">
-                  <Label htmlFor="similarity">Voice Similarity</Label>
-                  <span className="text-sm text-white/70">{similarity}%</span>
-                </div>
-
-                {/* Custom styled slider for similarity */}
-                <div>
-                  <style jsx>{`
-                    /* Custom slider styles for this component only */
-                    :global(
-                        .similarity-slider [data-orientation="horizontal"]
-                      ) {
-                      height: 4px;
-                      background: rgba(255, 255, 255, 0.2);
-                      border-radius: 9999px;
-                    }
-
-                    :global(.similarity-slider [role="slider"]) {
-                      background: white;
-                      border: none;
-                      box-shadow: 0 0 10px rgba(139, 92, 246, 0.5);
-                      height: 12px;
-                      width: 12px;
-                      border-radius: 9999px;
-                      transition: transform 0.2s;
-                      outline: none !important;
-                    }
-
-                    :global(.similarity-slider:hover [role="slider"]) {
-                      transform: scale(1.2);
-                    }
-
-                    :global(
-                        .similarity-slider [data-disabled] [role="slider"]
-                      ) {
-                      background: rgba(255, 255, 255, 0.5);
-                    }
-
-                    /* Style the track */
-                    :global(
-                        .similarity-slider
-                          [data-orientation="horizontal"]
-                          > span
-                      ) {
-                      height: 100%;
-                      background: linear-gradient(
-                        to right,
-                        rgba(139, 92, 246, 0.8),
-                        rgba(59, 130, 246, 0.8)
-                      );
-                      border-radius: 9999px;
-                    }
-
-                    /* Remove focus outline */
-                    :global(.similarity-slider [role="slider"]:focus-visible) {
-                      outline: none !important;
-                      box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.5),
-                        0 0 0 4px rgba(139, 92, 246, 0.5);
-                    }
-                  `}</style>
-                  <Slider
-                    id="similarity"
-                    min={0}
-                    max={100}
-                    step={1}
-                    value={[similarity]}
-                    onValueChange={handleSimilarityChange}
-                    className="similarity-slider"
-                  />
-                </div>
-
                 <p className="text-xs text-white/60">
                   Higher similarity preserves more of your voice characteristics
                   but may reduce quality.
@@ -1248,14 +1340,6 @@ export function VoiceCloning({
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="bg-white/10 rounded-lg p-3">
-                    <p className="text-xs text-white/70">Similarity</p>
-                    <p className="font-medium">{similarity}%</p>
-                  </div>
-                  <div className="bg-white/10 rounded-lg p-3">
-                    <p className="text-xs text-white/70">Voice Type</p>
-                    <p className="font-medium">Personal</p>
-                  </div>
-                  <div className="bg-white/10 rounded-lg p-3">
                     <p className="text-xs text-white/70">Samples</p>
                     <p className="font-medium">
                       {audioSamples.length + (audioUrl1 ? 1 : 0)}
@@ -1293,7 +1377,7 @@ export function VoiceCloning({
               variant="outline"
               className="border-white/20 bg-white/5 hover:bg-white/10 text-white/90 hover:text-white transition-colors"
             >
-              Adjust Voice
+              Clone Another Voice
             </Button>
             <Button
               className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"

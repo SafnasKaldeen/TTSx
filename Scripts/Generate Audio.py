@@ -10,13 +10,13 @@ RESET = "\033[0m"
 BLUE = "\033[94m"
 
 # Specify the directory containing the checkpoints and the text input
-Base_Dir = "E:/UOM/FYP/TTSx/Training/Sinhala"
+Base_Dir = "E:/UOM/FYP/TTSx/Model"
 model_name = "LJ_VITS"
-Training_Dir = "LJ_Mettananda2"
-checkpoints_dir = f"{Base_Dir}/{model_name}/{Training_Dir}"
-input_text = "ægē ekama aramuṇa vennet taman karana kaṭayutta tuḷa paripūrṇatvayaṭa pat vennayi"
+Training_Dir = "LJ_Dinithi"
+checkpoints_dir = f"{Base_Dir}/{Training_Dir}"
+input_text = "āyubōvan, obaṭa kesēda? mama hoṉdayi"
 config_path = os.path.join(checkpoints_dir, "config.json")
-output_dir = f"E:/UOM/FYP/TTSx/Training/Sinhala/Audios/Audios_{model_name}/{Training_Dir}"
+output_dir = f"E:/UOM/FYP/TTSx/Audios/Audios_{model_name}/{Training_Dir}"
 dataset = "LJ"
 
 # Ensure the output directory exists
@@ -28,7 +28,7 @@ for checkpoint_file in os.listdir(checkpoints_dir):
     if (checkpoint_file.endswith(".pth") and checkpoint_file != "speakers.pth"):
         checkpoint_path = os.path.join(checkpoints_dir, checkpoint_file)
         output_file = os.path.join(output_dir, f"{os.path.splitext(checkpoint_file)[0]}.wav")
-        speaker_id = "VCTK_Oshadi"  # Speaker ID for VCTK speaker comment it if the dataset is not VCTK
+        # speaker_id = "VCTK_Oshadi"  # Speaker ID for VCTK speaker comment it if the dataset is not VCTK
 
         print(f"{YELLOW}Processing checkpoint file: {checkpoint_file}{RESET}")
         try:    
