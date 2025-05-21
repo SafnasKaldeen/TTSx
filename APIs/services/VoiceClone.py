@@ -23,7 +23,7 @@ class VoiceCloner:
     def load_model(self):
         self.model_path = f"E:/UOM/FYP/TTSx/Model/VoiceConversionModel/model_file.pth"
         self.config_path = f"E:/UOM/FYP/TTSx/Model/VoiceConversionModel/config.json"
-        self.out_path = f"E:/UOM/FYP/TTSx/UI/ttsx/public/Audios/FinalInference.wav"
+        self.out_path = f"E:/UOM/FYP/TTSx/UI/client/public/Audios/ClonedAudio.wav"
 
         if not os.path.exists(self.model_path) or not os.path.exists(self.config_path):
             logger.error(f"Model file {self.model_path} or {self.config_path} not found")

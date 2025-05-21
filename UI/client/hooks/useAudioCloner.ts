@@ -65,13 +65,9 @@ export const useAudioCloner = (): UseAudioClonerResult => {
       console.log("Cloning audio with reference:", referenceAudio, "and target:", targetAudio)
 
       const cloningResponse = await axios.post("http://127.0.0.1:8000/api/Clone-tts", {
-        // ReferenceWAV: referenceAudio,
-        // TargetWAV: targetAudio,
-        ReferenceWAV: "/Audios/ReferenceAudio.wav",
-        TargetWAV: "/Audios/TargetAudio.wav",
+        ReferenceWAV: referenceAudio,
+        TargetWAV: targetAudio,
       })
-
-      console.log("Cloning response:", cloningResponse)
 
       // Handle the string response from the API
       const responseData = cloningResponse.data
@@ -88,8 +84,8 @@ export const useAudioCloner = (): UseAudioClonerResult => {
       setStatusStage("denoising")
       onProgress?.({ stage: "denoising" })
 
-      const denoiseResponse = await axios.post("http://localhost:8000/api/denoise_audio", {
-        file_path: rawAudioUrl,
+      const denoiseResponse = await axios.post("http://localhost:8000/api/clean_audio", {
+        file_path: "E:/UOM/FYP/TTSx/UI/client/public/Audios/ClonedAudio.wav",
       })
 
       if (denoiseResponse.status === 200) {
@@ -98,7 +94,7 @@ export const useAudioCloner = (): UseAudioClonerResult => {
         const denoisedAudioUrl =
           typeof denoisedData === "string"
             ? denoisedData
-            : denoisedData.denoised_audio_path || "/Audios/denoised_audio.wav"
+            : denoisedData.denoised_audio_path || "/Audios/FinalClonedAudio.wav"
 
         const rawAudioPath =
           typeof denoisedData === "string" ? rawAudioUrl : denoisedData.raw_audio_path || "/Audios/ClonedAudio.wav"
