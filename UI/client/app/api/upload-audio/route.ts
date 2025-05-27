@@ -25,7 +25,7 @@ export async function POST(request: Request) {
     // Check if this is a reference audio or target audio upload
     const isReference = formData.get("isReference") === "true"
     const targetIndex = formData.get("targetIndex")
-    
+
     // Check for file field
     const file = formData.get("file") || formData.get("audio")
 
@@ -52,24 +52,31 @@ export async function POST(request: Request) {
     // Ensure upload directory exists
     const uploadDir = await ensureUploadDir()
 
-    // Create a filename based on whether it's reference or target
+    // Create a consistent filename based on whether it's reference or target
     let filename
+    let originalExtension = path.extname(file.name)
+
+    // Default to .wav if no extension
+    if (!originalExtension) {
+      originalExtension = ".wav"
+    }
+
     if (isReference) {
-      filename = `reference-audio-${Date.now()}${path.extname(file.name)}`
+      filename = `referenceAudio${originalExtension}`
     } else if (targetIndex) {
-      filename = `target-audio${targetIndex}-${Date.now()}${path.extname(file.name)}`
+      filename = `targetAudio${targetIndex}${originalExtension}`
     } else {
       // Default naming if no specific type is provided
-      filename = `audio-${Date.now()}${path.extname(file.name)}`
+      filename = `audio-${Date.now()}${originalExtension}`
     }
-    
+
     const filePath = path.join(uploadDir, filename)
 
     // Write the file
     await writeFile(filePath, buffer)
 
     // Return the public URL path
-    const publicPath = `E:/UOM/FYP/TTSx/UI/client/public/uploads/${filename}`
+    const publicPath = `/uploads/${filename}`
 
     console.log(`File saved at: ${filePath}`)
     console.log(`Public path: ${publicPath}`)

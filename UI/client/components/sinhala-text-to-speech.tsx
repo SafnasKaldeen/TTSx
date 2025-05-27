@@ -195,6 +195,8 @@ export function SinhalaTextToSpeech({
   // Processing message based on state
   const getProcessingMessage = () => {
     switch (processingState) {
+      case "idle":
+        return "Ready to generate speech!";
       case "Preprocessing":
         return "Preprocessing Sinhala text...";
       case "synthesizing":
@@ -310,7 +312,7 @@ export function SinhalaTextToSpeech({
                   </div>
                   <div className="bg-white/10 rounded-lg p-3 text-center">
                     <p className="text-xs text-white/70">Audio Format</p>
-                    <p className="font-medium">MP3</p>
+                    <p className="font-medium">WAV</p>
                   </div>
                   <div className="bg-white/10 rounded-lg p-3 text-center">
                     <p className="text-xs text-white/70">Daily Limit</p>
@@ -339,15 +341,15 @@ export function SinhalaTextToSpeech({
                           </div>
                         </SelectItem>
                       )}
-                      <SelectItem value="female1">Female (Standard)</SelectItem>
-                      <SelectItem value="female2">Female (Western)</SelectItem>
-                      <SelectItem value="male1">Male (Standard)</SelectItem>
-                      <SelectItem value="male2">Male (Deep)</SelectItem>
+                      <SelectItem value="LJ_Dinithi">Dinithi</SelectItem>
+                      <SelectItem value="LJ_Oshadi">Oshadi</SelectItem>
+                      <SelectItem value="LJ_Isuru">Isuru</SelectItem>
+                      <SelectItem value="LJ_Mettananda">Mettananda</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
 
-                <div className="space-y-2">
+                <div className="space-y-2 hidden">
                   <div className="flex justify-between">
                     <Label htmlFor="speed">Speed</Label>
                     <span className="text-sm text-white/70">{speechRate}%</span>
@@ -437,7 +439,7 @@ export function SinhalaTextToSpeech({
                   </span>
                 </div> */}
 
-                <div className="flex items-center justify-between bg-white/10 p-3 rounded-xl">
+                {/* <div className="flex items-center justify-between bg-white/10 p-3 rounded-xl">
                   <div className="flex items-center space-x-2">
                     <Switch
                       id="use-cloned"
@@ -457,7 +459,7 @@ export function SinhalaTextToSpeech({
                     </Label>
                   </div>
                   <span className="text-xs text-white/70">Your voice</span>
-                </div>
+                </div> */}
               </div>
 
               <Button
@@ -595,7 +597,7 @@ export function SinhalaTextToSpeech({
               </div>
 
               {/* Dynamic Audio Player with Waveform */}
-              <h1>{isDenoised ? audioUrl : audioRawUrl}</h1>
+              {/* <h1>{isDenoised ? audioUrl : audioRawUrl}</h1> */}
               <AudioPlayer
                 audioUrl={isDenoised ? audioUrl : audioRawUrl}
                 fileName={isDenoised ? "Enhanced Speech" : "Original Speech"}

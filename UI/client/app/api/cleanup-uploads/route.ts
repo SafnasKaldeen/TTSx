@@ -1,96 +1,58 @@
 import { NextResponse } from "next/server"
-import fs from "fs"
+import { readdir, unlink } from "fs/promises"
 import path from "path"
-
-// Use regular fs instead of fs/promises
-const fsPromises = {
-  readdir: (path: string) => {
-    return new Promise<string[]>((resolve, reject) => {
-      fs.readdir(path, (err, files) => {
-        if (err) reject(err)
-        else resolve(files)
-      })
-    })
-  },
-  stat: (path: string) => {
-    return new Promise<fs.Stats>((resolve, reject) => {
-      fs.stat(path, (err, stats) => {
-        if (err) reject(err)
-        else resolve(stats)
-      })
-    })
-  },
-  unlink: (path: string) => {
-    return new Promise<void>((resolve, reject) => {
-      fs.unlink(path, (err) => {
-        if (err) reject(err)
-        else resolve()
-      })
-    })
-  },
-}
 
 export async function POST(request: Request) {
   try {
     const { filesToKeep = [] } = await request.json()
-
-    // Get the uploads directory
+    
+    // Get the uploads directory path
     const uploadsDir = path.join(process.cwd(), "public", "uploads")
-
+    
     // Read all files in the directory
-    const files = await fsPromises.readdir(uploadsDir)
-
-    console.log("Files in uploads directory:", files)
-    console.log("Files to keep:", filesToKeep)
-
-    // Track deleted files and any errors
-    const deletedFiles = []
-    const errors = []
-
-    // Delete each file that's not in the filesToKeep array
-    for (const file of files) {
-      const filePath = path.join(uploadsDir, file)
-
-      // Check if this file should be kept
-      const shouldKeep = filesToKeep.some((keepPath) => {
-        // Convert relative path to filename for comparison
-        const keepFilename = path.basename(keepPath)
-        return keepFilename === file
-      })
-
-      if (!shouldKeep) {
+    const files = await readdir(uploadsDir)
+    
+    // Convert filesToKeep paths to just filenames
+    const filenamesToKeep = filesToKeep.map((filePath: string) => {
+      // Extract just the filename from paths like "/uploads/filename.wav"
+      return filePath.split('/').pop()
+    }).filter(Boolean)
+    
+    console.log("Files to keep:", filenamesToKeep)
+    
+    // Delete files that are not in the filesToKeep list
+    const deletionPromises = files.map(async (file) => {
+      if (!filenamesToKeep.includes(file)) {
+        const filePath = path.join(uploadsDir, file)
+        console.log(`Deleting file: ${filePath}`)
         try {
-          // Get file stats to make sure it's a file, not a directory
-          const stats = await fsPromises.stat(filePath)
-
-          if (stats.isFile()) {
-            await fsPromises.unlink(filePath)
-            deletedFiles.push(file)
-            console.log(`Deleted file: ${file}`)
-          }
+          await unlink(filePath)
+          return { deleted: file }
         } catch (err) {
           console.error(`Error deleting file ${file}:`, err)
-          errors.push({ file, error: err instanceof Error ? err.message : String(err) })
+          return { error: file }
         }
-      } else {
-        console.log(`Keeping file: ${file}`)
       }
-    }
-
+      return { kept: file }
+    })
+    
+    const results = await Promise.all(deletionPromises)
+    
     return NextResponse.json({
       success: true,
-      message: `Cleaned up ${deletedFiles.length} files from uploads directory`,
-      deletedFiles,
-      errors: errors.length > 0 ? errors : undefined,
+      results,
+      deleted: results.filter(r => r.deleted).length,
+      kept: results.filter(r => r.kept).length,
+      errors: results.filter(r => r.error).length
     })
   } catch (error) {
-    console.error("Error in cleanup-uploads API route:", error)
+    console.error("Error cleaning up uploads:", error)
     return NextResponse.json(
       {
-        error: "Error cleaning up uploads directory",
-        details: error instanceof Error ? error.message : String(error),
+        error: "Error cleaning up uploads",
+        details: error instanceof Error ? error.message : String(error)
       },
-      { status: 500 },
+      { status: 500 }
     )
   }
 }

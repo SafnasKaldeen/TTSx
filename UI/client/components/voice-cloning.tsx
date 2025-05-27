@@ -6,6 +6,7 @@ import axios from "axios";
 
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
+import AudioSamplesSection from "@/components/AudioSamplesSection"; // adjust path as needed
 import { AudioPlayer } from "@/components/audio-player";
 import {
   Mic,
@@ -94,6 +95,16 @@ export function VoiceCloning({
   const containerRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
 
+  // Media recorder states
+  const [mediaRecorder1, setMediaRecorder1] = useState<MediaRecorder | null>(
+    null
+  );
+  const [mediaRecorder2, setMediaRecorder2] = useState<MediaRecorder | null>(
+    null
+  );
+  const audioChunks1Ref = useRef<Blob[]>([]);
+  const audioChunks2Ref = useRef<Blob[]>([]);
+
   // Use the audio cloner hook
   const { loading, error, result, statusStage, referenceAudio, cloneAudio } =
     useAudioCloner();
@@ -109,6 +120,31 @@ export function VoiceCloning({
     document.body.removeChild(a);
   };
 
+  // Clean up all files in the uploads directory except for the ones to keep
+  const cleanupUploadedFiles = async (filesToKeep: string[] = []) => {
+    try {
+      // Clean up all uploaded files except those specified in filesToKeep
+      const response = await axios.post("/api/cleanup-uploads", {
+        filesToKeep: filesToKeep,
+      });
+      console.log("Cleanup response:", response.data);
+    } catch (error) {
+      console.error("Error cleaning up files:", error);
+    }
+  };
+
+  // Clean up previous reference audio files when a new one is uploaded
+  const cleanupPreviousReferenceAudio = async (newReferencePath: string) => {
+    try {
+      // Keep all target audio files and the new reference audio
+      const filesToKeep = [...targetAudioPaths, newReferencePath];
+      await cleanupUploadedFiles(filesToKeep);
+      console.log("Previous reference audio files cleaned up");
+    } catch (error) {
+      console.error("Error cleaning up previous reference audio:", error);
+    }
+  };
+
   // Handle incoming audio from TTS
   useEffect(() => {
     if (audioForCloning) {
@@ -120,14 +156,51 @@ export function VoiceCloning({
 
       // Automatically populate the first audio input with the generated audio
       setAudioUrl1(audioForCloning);
-      setRecordingState1("ready");
+      setRecordingState1("processing"); // Show processing state while handling the TTS audio
+
+      // Upload the TTS audio to the server
+      const uploadTTSAudio = async () => {
+        try {
+          // Fetch the audio file from the URL
+          const response = await fetch(audioForCloning);
+          const blob = await response.blob();
+
+          // Create a File object from the blob
+          const fileName = `tts-audio.wav`;
+          const file = new File([blob], fileName, { type: "audio/wav" });
+
+          // Upload the file to the server as reference audio
+          const filePath = await uploadAudioFile(file, true);
+          if (filePath) {
+            // Clean up previous reference audio files
+            await cleanupPreviousReferenceAudio(filePath);
+
+            setReferenceAudioPath(filePath);
+            setRecordingState1("ready");
+            console.log(
+              "TTS audio uploaded successfully as reference audio:",
+              filePath
+            );
+          } else {
+            // Handle upload failure
+            setRecordingState1("idle");
+            alert("Failed to upload TTS audio as reference. Please try again.");
+          }
+        } catch (error) {
+          console.error("Error uploading TTS audio:", error);
+          setRecordingState1("idle");
+          setUploadError("Failed to process TTS audio. Please try again.");
+        }
+      };
+
+      uploadTTSAudio();
 
       // Clear the audio for cloning since we've used it
       if (onClearAudioForCloning) {
         onClearAudioForCloning();
       }
     }
-  }, [audioForCloning, onClearAudioForCloning, voiceCloned]);
+  }, [audioForCloning, onClearAudioForCloning, voiceCloned, targetAudioPaths]);
 
   // Upload a file to the server with proper metadata
   const uploadAudioFile = async (
@@ -191,6 +264,9 @@ export function VoiceCloning({
       // Upload the file to the server as reference audio
       const filePath = await uploadAudioFile(file, true);
       if (filePath) {
+        // Clean up previous reference audio files
+        await cleanupPreviousReferenceAudio(filePath);
+
         setReferenceAudioPath(filePath);
         setRecordingState1("ready");
       } else {
@@ -215,6 +291,9 @@ export function VoiceCloning({
         const file = files[i];
         const url = URL.createObjectURL(file);
 
+        // Calculate the target index for this file
+        const targetIndex = targetAudioPaths.length + i + 1;
+
         // Create sample object
         const newSample: AudioSample = {
           id: `upload-${Date.now()}-${i}`,
@@ -225,11 +304,7 @@ export function VoiceCloning({
         };
 
         // Upload the file to the server as target audio
-        const filePath = await uploadAudioFile(
-          file,
-          false,
-          targetAudioPaths.length + i + 1
-        );
+        const filePath = await uploadAudioFile(file, false, targetIndex);
         if (filePath) {
           newSample.filePath = filePath;
           newPaths.push(filePath);
@@ -250,16 +325,140 @@ export function VoiceCloning({
     }
   };
 
+  // Request microphone access and set up MediaRecorder for reference audio
+  const setupAudioRecording1 = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+
+      audioChunks1Ref.current = [];
+
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunks1Ref.current.push(event.data);
+        }
+      };
+
+      recorder.onstop = async () => {
+        const audioBlob = new Blob(audioChunks1Ref.current, {
+          type: "audio/wav",
+        });
+        const audioUrl = URL.createObjectURL(audioBlob);
+        setAudioUrl1(audioUrl);
+
+        // Create file from blob
+        const fileName = `reference-audio-${Date.now()}.wav`;
+        const audioFile = new File([audioBlob], fileName, {
+          type: "audio/wav",
+        });
+        setUploadedFile1(audioFile);
+
+        // Upload file
+        setRecordingState1("processing");
+        const filePath = await uploadAudioFile(audioFile, true);
+
+        if (filePath) {
+          // Clean up previous reference audio files
+          await cleanupPreviousReferenceAudio(filePath);
+
+          setReferenceAudioPath(filePath);
+          setRecordingState1("ready");
+        } else {
+          setRecordingState1("idle");
+          alert("Failed to upload reference audio. Please try again.");
+        }
+      };
+
+      setMediaRecorder1(recorder);
+      return recorder;
+    } catch (err) {
+      console.error("Error accessing microphone:", err);
+      alert("Could not access microphone. Please check permissions.");
+      return null;
+    }
+  };
+
+  // Request microphone access and set up MediaRecorder for target audio
+  const setupAudioRecording2 = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+
+      audioChunks2Ref.current = [];
+
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunks2Ref.current.push(event.data);
+        }
+      };
+
+      recorder.onstop = async () => {
+        const audioBlob = new Blob(audioChunks2Ref.current, {
+          type: "audio/wav",
+        });
+        const audioUrl = URL.createObjectURL(audioBlob);
+
+        // Create target audio file
+        const targetIndex = targetAudioPaths.length + 1;
+        const fileName = `target-audio-${Date.now()}.wav`;
+        const audioFile = new File([audioBlob], fileName, {
+          type: "audio/wav",
+        });
+
+        // Create sample object
+        const newSample: AudioSample = {
+          id: `recording-${Date.now()}`,
+          url: audioUrl,
+          name: `Voice Recording ${targetIndex}`,
+          duration: formatTime(recordingTime2),
+          size: `${Math.round(audioBlob.size / 1024)} KB`,
+        };
+
+        // Upload the file
+        setRecordingState2("processing");
+        const filePath = await uploadAudioFile(audioFile, false, targetIndex);
+
+        if (filePath) {
+          newSample.filePath = filePath;
+          setAudioSamples((prev) => [...prev, newSample]);
+          setTargetAudioPaths((prev) => [...prev, filePath]);
+          setExpandedSampleId(newSample.id);
+          setRecordingState2("ready");
+        } else {
+          setRecordingState2("idle");
+          alert("Failed to upload target audio. Please try again.");
+        }
+      };
+
+      setMediaRecorder2(recorder);
+      return recorder;
+    } catch (err) {
+      console.error("Error accessing microphone:", err);
+      alert("Could not access microphone. Please check permissions.");
+      return null;
+    }
+  };
+
   // Start recording for first audio input
-  const startRecording1 = () => {
+  const startRecording1 = async () => {
     // Reset cloning state if already cloned
     if (voiceCloned) {
       setVoiceCloned(false);
       setCloningStep(0);
     }
 
+    let recorder = mediaRecorder1;
+    if (!recorder) {
+      recorder = await setupAudioRecording1();
+      if (!recorder) return;
+    }
+
     setRecordingState1("recording");
     setRecordingTime1(0);
+
+    // Start recording with 1-second chunks
+    audioChunks1Ref.current = [];
+    recorder.start(1000);
 
     // Simulate recording timer
     timerRef1.current = setInterval(() => {
@@ -274,9 +473,19 @@ export function VoiceCloning({
   };
 
   // Start recording for second audio input
-  const startRecording2 = () => {
+  const startRecording2 = async () => {
+    let recorder = mediaRecorder2;
+    if (!recorder) {
+      recorder = await setupAudioRecording2();
+      if (!recorder) return;
+    }
+
     setRecordingState2("recording");
     setRecordingTime2(0);
+
+    // Start recording with 1-second chunks
+    audioChunks2Ref.current = [];
+    recorder.start(1000);
 
     // Simulate recording timer
     timerRef2.current = setInterval(() => {
@@ -292,6 +501,10 @@ export function VoiceCloning({
 
   // Pause recording for first audio input
   const pauseRecording1 = () => {
+    if (mediaRecorder1 && mediaRecorder1.state === "recording") {
+      mediaRecorder1.pause();
+    }
+
     setRecordingState1("paused");
     if (timerRef1.current) {
       clearInterval(timerRef1.current);
@@ -301,6 +514,10 @@ export function VoiceCloning({
 
   // Pause recording for second audio input
   const pauseRecording2 = () => {
+    if (mediaRecorder2 && mediaRecorder2.state === "recording") {
+      mediaRecorder2.pause();
+    }
+
     setRecordingState2("paused");
     if (timerRef2.current) {
       clearInterval(timerRef2.current);
@@ -310,6 +527,10 @@ export function VoiceCloning({
 
   // Resume recording for first audio input
   const resumeRecording1 = () => {
+    if (mediaRecorder1 && mediaRecorder1.state === "paused") {
+      mediaRecorder1.resume();
+    }
+
     setRecordingState1("recording");
     timerRef1.current = setInterval(() => {
       setRecordingTime1((prev) => {
@@ -324,6 +545,10 @@ export function VoiceCloning({
 
   // Resume recording for second audio input
   const resumeRecording2 = () => {
+    if (mediaRecorder2 && mediaRecorder2.state === "paused") {
+      mediaRecorder2.resume();
+    }
+
     setRecordingState2("recording");
     timerRef2.current = setInterval(() => {
       setRecordingTime2((prev) => {
@@ -337,77 +562,45 @@ export function VoiceCloning({
   };
 
   // Stop recording for first audio input
-  const stopRecording1 = async () => {
+  const stopRecording1 = () => {
     if (timerRef1.current) {
       clearInterval(timerRef1.current);
       timerRef1.current = null;
     }
 
+    if (mediaRecorder1 && mediaRecorder1.state !== "inactive") {
+      mediaRecorder1.stop();
+    }
+
     if (recordingTime1 < 5) {
       // Too short
       setRecordingState1("idle");
+      alert("Recording too short. Please record at least 5 seconds.");
       return;
     }
 
-    setRecordingState1("processing");
-
-    // In a real implementation, you would:
-    // 1. Get the recorded audio blob
-    // 2. Upload it to the server
-    // 3. Set the reference audio path
-
-    // For demo purposes, we'll simulate this
-    setTimeout(async () => {
-      const demoUrl = "/demo-audio-female.mp3";
-      setAudioUrl1(demoUrl);
-
-      // Simulate uploading the recorded audio
-      // In a real implementation, you would create a File from the recorded blob
-      // and upload it using uploadAudioFile
-      setReferenceAudioPath("/uploads/reference-audio-demo.mp3");
-      setRecordingState1("ready");
-    }, 2000);
+    // The actual upload happens in the onstop event handler of the mediaRecorder
   };
 
   // Stop recording for second audio input
-  const stopRecording2 = async () => {
+  const stopRecording2 = () => {
     if (timerRef2.current) {
       clearInterval(timerRef2.current);
       timerRef2.current = null;
     }
 
+    if (mediaRecorder2 && mediaRecorder2.state !== "inactive") {
+      mediaRecorder2.stop();
+    }
+
     if (recordingTime2 < 5) {
       // Too short
       setRecordingState2("idle");
+      alert("Recording too short. Please record at least 5 seconds.");
       return;
     }
 
-    setRecordingState2("processing");
-
-    // In a real implementation, you would:
-    // 1. Get the recorded audio blob
-    // 2. Upload it to the server
-    // 3. Add the target audio path
-
-    // For demo purposes, we'll simulate this
-    setTimeout(async () => {
-      const demoUrl = "/sample-audio.mp3";
-      const newSample: AudioSample = {
-        id: `recording-${Date.now()}`,
-        url: demoUrl,
-        name: `Voice Recording ${audioSamples.length + 1}`,
-        duration: formatTime(recordingTime2),
-        filePath: `/uploads/target-audio${
-          targetAudioPaths.length + 1
-        }-demo.mp3`,
-      };
-
-      // Add the new sample and its path
-      setAudioSamples((prev) => [...prev, newSample]);
-      setTargetAudioPaths((prev) => [...prev, newSample.filePath!]);
-      setExpandedSampleId(newSample.id);
-      setRecordingState2("ready");
-    }, 2000);
+    // The actual upload happens in the onstop event handler of the mediaRecorder
   };
 
   // Reset first audio input
@@ -416,6 +609,9 @@ export function VoiceCloning({
     setAudioUrl1(null);
     setUploadedFile1(null);
     setReferenceAudioPath("");
+
+    // Clean up the reference audio file
+    cleanupUploadedFiles(targetAudioPaths);
   };
 
   // Remove a specific audio sample
@@ -423,10 +619,19 @@ export function VoiceCloning({
     // Find the index of the sample to remove
     const sampleIndex = audioSamples.findIndex((sample) => sample.id === id);
     if (sampleIndex !== -1) {
+      // Get the path of the sample to remove
+      const pathToRemove = audioSamples[sampleIndex].filePath;
+
       // Remove the corresponding path from targetAudioPaths
       const newTargetPaths = [...targetAudioPaths];
       newTargetPaths.splice(sampleIndex, 1);
       setTargetAudioPaths(newTargetPaths);
+
+      // Clean up the removed file
+      if (pathToRemove) {
+        const filesToKeep = [referenceAudioPath, ...newTargetPaths];
+        cleanupUploadedFiles(filesToKeep);
+      }
     }
 
     // Remove the sample from audioSamples
@@ -460,50 +665,37 @@ export function VoiceCloning({
     }
   };
 
-  // Updated cloneVoice function to use the useAudioCloner hook
+  const delay = (ms: number) => new Promise((res) => setTimeout(res, ms));
+
   const cloneVoice = async () => {
     setIsCloning(true);
-    setCloningStep(1);
     setUploadError(null);
 
     try {
       console.log("Starting voice cloning process...");
 
-      // Step 1: Verify reference audio path
       if (!referenceAudioPath) {
         throw new Error(
           "No reference audio path available. Please upload reference audio first."
         );
       }
 
-      console.log("Reference audio path:", referenceAudioPath);
-
-      // Step 2: Verify target audio paths
       if (targetAudioPaths.length === 0) {
         throw new Error(
           "No target audio paths available. Please upload at least one target audio file."
         );
       }
 
-      console.log("Target audio paths:", targetAudioPaths);
-      const primaryTargetPath = targetAudioPaths[0]; // Use the first target audio
+      const primaryTargetPath = targetAudioPaths[0];
 
-      // Step 3: Use the cloneAudio function from the hook
-      setCloningStep(3);
-      console.log("Starting voice cloning with paths:", {
-        referenceAudioPath,
-        targetAudioPath: primaryTargetPath,
-      });
-
-      // Use the cloneAudio function from the hook
-      await cloneAudio(
+      // 🔁 Start API call immediately
+      const clonePromise = cloneAudio(
         referenceAudioPath,
         primaryTargetPath,
-        (progressData) => {
+        async (progressData) => {
           console.log("Cloning progress:", progressData);
 
           if (progressData.stage === "cloning_complete") {
-            setCloningStep(3);
             if (progressData.raw_audio_url) {
               setClonedAudioRawUrl(progressData.raw_audio_url);
               console.log("Raw audio URL set:", progressData.raw_audio_url);
@@ -511,8 +703,9 @@ export function VoiceCloning({
           }
 
           if (progressData.stage === "complete") {
+            // ✅ Step 4
             setCloningStep(4);
-            console.log("Cloning complete!");
+            await delay(2000); // Hold step 4 for 1s
 
             if (progressData.cloned_audio_url) {
               setClonedAudioUrl(progressData.cloned_audio_url);
@@ -524,42 +717,29 @@ export function VoiceCloning({
 
             if (progressData.raw_audio_url) {
               setClonedAudioRawUrl(progressData.raw_audio_url);
-              console.log("Raw audio URL set:", progressData.raw_audio_url);
             }
 
             setIsCloning(false);
             setVoiceCloned(true);
             setVoiceRating(0);
 
-            // Clean up uploaded files
-            try {
-              // We'll keep the reference and first target file just in case they're needed
-              const filesToKeep = [referenceAudioPath, primaryTargetPath];
-              axios
-                .post("/api/cleanup-uploads", {
-                  filesToKeep,
-                })
-                .then((response) => {
-                  console.log("Cleanup response:", response.data);
-                })
-                .catch((cleanupError) => {
-                  console.error("Error cleaning up files:", cleanupError);
-                });
-            } catch (cleanupError) {
-              console.error("Error cleaning up files:", cleanupError);
-              // Don't throw here, as the cloning was successful
-            }
-
-            if (onVoiceCloned) {
-              onVoiceCloned();
-            }
+            if (onVoiceCloned) onVoiceCloned();
           }
         }
       );
+
+      // 👣 Sequential visual steps before API response
+      setCloningStep(1);
+      await delay(2000);
+      setCloningStep(2);
+      await delay(2000);
+      setCloningStep(3);
+
+      // ⏳ Wait for API cloning process to finish (via callback)
+      await clonePromise;
     } catch (error) {
       console.error("Error during voice cloning:", error);
       setIsCloning(false);
-      // Handle error display
       setUploadError(
         error instanceof Error ? error.message : "Unknown error during cloning"
       );
@@ -578,8 +758,9 @@ export function VoiceCloning({
 
   // Check if we can clone (need at least one audio input)
   const canClone =
-    recordingState1 === "ready" ||
-    (audioSamples.length > 0 && recordingState2 === "ready");
+    recordingState1 === "ready" &&
+    audioSamples.length > 0 &&
+    recordingState2 === "ready";
 
   // Get cloning step information
   const getStepInfo = () => {
@@ -599,8 +780,9 @@ export function VoiceCloning({
         };
       case 3:
         return {
-          title: "Training Voice Model",
-          description: "Building a neural model of your voice...",
+          title: "Embedding Voice Features",
+          description:
+            "Mapping your voice to a neural network, then inference...",
           icon: <Sparkles className="h-10 w-10 text-pink-300" />,
         };
       case 4:
@@ -631,19 +813,6 @@ export function VoiceCloning({
 
   const handleRatingChange = (value: number) => {
     setVoiceRating(value);
-  };
-
-  const handleAudioUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      // Construct a path or URL (for browser usage this would typically be a blob URL)
-      const fileURL = "E:/UOM/FYP/TTSx/UI/client/public/Audios/" + file.name;
-      // Store the path or URL
-      // Delay triggering audio cloning
-      setTimeout(() => {
-        // handleCloneAudio();
-      }, 15000); // 15 seconds delay
-    }
   };
 
   return (
@@ -951,13 +1120,6 @@ export function VoiceCloning({
                       }
                     />
 
-                    {referenceAudioPath && (
-                      <div className="bg-white/5 p-2 rounded text-xs text-white/60 break-all">
-                        <span className="font-semibold">Server Path:</span>{" "}
-                        {referenceAudioPath}
-                      </div>
-                    )}
-
                     <div className="flex justify-end">
                       <Button
                         onClick={resetAudio1}
@@ -1201,15 +1363,6 @@ export function VoiceCloning({
                                     fileName={sample.name}
                                     fileInfo={sample.size || "Voice Sample"}
                                   />
-
-                                  {sample.filePath && (
-                                    <div className="bg-white/5 p-2 rounded text-xs text-white/60 break-all mt-2">
-                                      <span className="font-semibold">
-                                        Server Path:
-                                      </span>{" "}
-                                      {sample.filePath}
-                                    </div>
-                                  )}
                                 </div>
                               )}
                             </div>
@@ -1231,6 +1384,13 @@ export function VoiceCloning({
                             variant="destructive"
                             size="sm"
                             onClick={() => {
+                              // Clean up all target audio files
+                              if (referenceAudioPath) {
+                                cleanupUploadedFiles([referenceAudioPath]);
+                              } else {
+                                cleanupUploadedFiles([]);
+                              }
+
                               setAudioSamples([]);
                               setExpandedSampleId(null);
                               setRecordingState2("idle");
@@ -1248,60 +1408,12 @@ export function VoiceCloning({
                 )}
               </div>
 
-              {/* File paths summary */}
-              {(referenceAudioPath || targetAudioPaths.length > 0) && (
-                <div className="bg-white/10 rounded-xl p-4 mb-6">
-                  <h3 className="font-medium mb-3">
-                    Audio Files Ready for Cloning
-                  </h3>
-
-                  <div className="space-y-2 text-sm">
-                    {referenceAudioPath && (
-                      <div className="flex items-start">
-                        <div className="bg-purple-500/20 p-1 rounded-full mr-2 mt-0.5">
-                          <FileAudio className="h-4 w-4 text-purple-300" />
-                        </div>
-                        <div>
-                          <p className="font-medium">Reference Audio</p>
-                          <p className="text-xs text-white/60 break-all">
-                            {referenceAudioPath}
-                          </p>
-                        </div>
-                      </div>
-                    )}
-
-                    {targetAudioPaths.length > 0 && (
-                      <div className="flex items-start">
-                        <div className="bg-blue-500/20 p-1 rounded-full mr-2 mt-0.5">
-                          <FileAudio className="h-4 w-4 text-blue-300" />
-                        </div>
-                        <div>
-                          <p className="font-medium">
-                            Target Audio ({targetAudioPaths.length})
-                          </p>
-                          <div className="space-y-1 mt-1">
-                            {targetAudioPaths.map((path, index) => (
-                              <p
-                                key={index}
-                                className="text-xs text-white/60 break-all"
-                              >
-                                {index + 1}. {path}
-                              </p>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              <div className="space-y-2 mb-6">
-                <p className="text-xs text-white/60">
-                  Higher similarity preserves more of your voice characteristics
-                  but may reduce quality.
+              {!canClone && !isCloning && !voiceCloned && (
+                <p className="text-center text-white/60 text-sm mt-2">
+                  Please provide at least 3 seconds long, one audio sample to
+                  clone a voice.
                 </p>
-              </div>
+              )}
             </div>
           ) : (
             <div className="space-y-6">
@@ -1344,7 +1456,15 @@ export function VoiceCloning({
                     {/* Primary sample visualization */}
                     {audioUrl1 && (
                       <div className="bg-white/5 rounded-lg p-3 flex items-center">
-                        <div className="h-8 w-8 bg-purple-500/20 rounded-full flex items-center justify-center mr-3">
+                        <div
+                          className="h-8 w-8 bg-purple-500/20 rounded-full flex items-center justify-center mr-3 cursor-pointer"
+                          onClick={() => {
+                            const audio = document.getElementById(
+                              "primary-audio"
+                            ) as HTMLAudioElement;
+                            audio?.play();
+                          }}
+                        >
                           <Mic className="h-4 w-4 text-purple-300" />
                         </div>
                         <div className="flex-1">
@@ -1363,6 +1483,12 @@ export function VoiceCloning({
                             ))}
                           </div>
                         </div>
+                        {/* Audio tag */}
+                        <audio
+                          id="primary-audio"
+                          src={audioUrl1}
+                          preload="auto"
+                        />
                       </div>
                     )}
 
@@ -1372,7 +1498,15 @@ export function VoiceCloning({
                         key={sample.id}
                         className="bg-white/5 rounded-lg p-3 flex items-center"
                       >
-                        <div className="h-8 w-8 bg-blue-500/20 rounded-full flex items-center justify-center mr-3">
+                        <div
+                          className="h-8 w-8 bg-blue-500/20 rounded-full flex items-center justify-center mr-3 cursor-pointer"
+                          onClick={() => {
+                            const audio = document.getElementById(
+                              `sample-audio-${index}`
+                            ) as HTMLAudioElement;
+                            audio?.play();
+                          }}
+                        >
                           <FileAudio className="h-4 w-4 text-blue-300" />
                         </div>
                         <div className="flex-1">
@@ -1393,10 +1527,15 @@ export function VoiceCloning({
                             ))}
                           </div>
                         </div>
+                        {/* Audio tag */}
+                        <audio
+                          id={`sample-audio-${index}`}
+                          src={sample.url}
+                          preload="auto"
+                        />
                       </div>
                     ))}
                   </div>
-
                   <p className="text-xs text-white/60 mt-3">
                     These audio samples were analyzed to create your voice
                     profile. The more samples you provide, the more accurate
@@ -1476,9 +1615,7 @@ export function VoiceCloning({
                 <div className="grid grid-cols-2 gap-4">
                   <div className="bg-white/10 rounded-lg p-3">
                     <p className="text-xs text-white/70">Samples</p>
-                    <p className="font-medium">
-                      {audioSamples.length + (audioUrl1 ? 1 : 0)}
-                    </p>
+                    <p className="font-medium">{audioSamples.length + 1}</p>
                   </div>
                   <div className="bg-white/10 rounded-lg p-3">
                     <p className="text-xs text-white/70">Quality</p>
@@ -1508,6 +1645,17 @@ export function VoiceCloning({
                 setVoiceCloned(false);
                 // Reset the cloning state
                 setCloningStep(0);
+                // Clean up all files
+                cleanupUploadedFiles([]);
+                // Reset audio states
+                setAudioUrl1(null);
+                setUploadedFile1(null);
+                setAudioSamples([]);
+                setExpandedSampleId(null);
+                setRecordingState1("idle");
+                setRecordingState2("idle");
+                setReferenceAudioPath("");
+                setTargetAudioPaths([]);
               }}
               variant="outline"
               className="border-white/20 bg-white/5 hover:bg-white/10 text-white/90 hover:text-white transition-colors"
@@ -1523,12 +1671,6 @@ export function VoiceCloning({
             </Button>
           </div>
         ) : null}
-
-        {!canClone && !isCloning && !voiceCloned && (
-          <p className="text-center text-white/60 text-sm mt-2">
-            Please provide at least one audio sample to clone a voice.
-          </p>
-        )}
       </div>
     </div>
   );

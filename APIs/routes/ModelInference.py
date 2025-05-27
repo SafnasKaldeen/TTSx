@@ -55,7 +55,7 @@ def clone_tts(input_data: VoiceCloningInput):
     print("Voice Cloning started")
     try:
         # Correct the initialization of VoiceCloner to use the right parameters
-        voice_cloner = VoiceCloner(referenceWAV=input_data.TargetWAV, targetWAV=input_data.ReferenceWAV)
+        voice_cloner = VoiceCloner(referenceWAV=input_data.ReferenceWAV, targetWAV=input_data.TargetWAV)
         if not voice_cloner:
             raise HTTPException(status_code=500, detail="Failed to load Voice Cloner model.")
 
