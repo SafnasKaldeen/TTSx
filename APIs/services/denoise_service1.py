@@ -124,6 +124,47 @@ def clean_audio_service(audio_file_path):
         return {"status": "error", "message": f"An unexpected error occurred: {str(e)}"}
 
 
+def clean_Cloned_audio_service(audio_file_path):
+    """Complete service for cleaning audio file."""
+    try:
+        print("Starting audio cleaning service...")
+
+        # Step 1: Get signed upload URL
+        signed_upload_url = get_signed_upload_url(audio_file_path)
+        if not signed_upload_url:
+            return {"status": "error", "message": "Failed to get signed upload URL."}
+
+        # Step 2: Upload the file to signed URL
+        response = upload_file_to_url(signed_upload_url, audio_file_path)
+        if response.status_code != 200:
+            return {"status": "error", "message": f"Failed to upload file. Error: {response.text}"}
+
+        # Step 3: Clean the audio
+        file_url = signed_upload_url  # The signed URL will be used for cleaning
+        clean_response = clean_audio(file_url)
+        if not clean_response or not clean_response.get("id"):
+            return {"status": "error", "message": "Failed to clean audio."}
+
+        edit_id = clean_response["id"]
+        print(f"Audio cleaning initiated. Edit ID: {edit_id}")
+
+        # Step 4: Poll for audio cleaning completion
+        retries = 0
+        poll_interval = 10  # seconds
+        max_retries = 10
+        while retries < max_retries:
+            download_path = download_cleaned_audio(edit_id)
+            if download_path:
+                return {"status": "success", "message": "File cleaned and downloaded successfully.", "download_path": download_path}
+            time.sleep(poll_interval)
+            retries += 1
+
+        return {"status": "error", "message": "Failed to download cleaned audio after retries."}
+
+    except Exception as e:
+        print(f"An unexpected error occurred: {str(e)}")
+        return {"status": "error", "message": f"An unexpected error occurred: {str(e)}"}
+
 # # Example usage
 # audio_file_path = "E:/UOM/FYP/TTSx/UI/client/public/Audios/DenoisedInference.wav"
 # result = clean_audio_service(audio_file_path)
