@@ -6,6 +6,7 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from tqdm import tqdm
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -84,7 +85,7 @@ def text_to_roman(driver, text):
         logging.error(f"Error converting text to Roman: {text}\n{e}")
         return "Error"
 
-def preprocess_sinhala_text(driver, text):
+def preprocess_sinhala_text(driver, text, pbar=None):
     """Preprocesses Sinhala text by handling dates, numbers, normalization, and Roman script conversion."""
     # Convert numbers
     numbers_in_text = re.findall(r"\b\d+\b", text)
@@ -100,6 +101,10 @@ def preprocess_sinhala_text(driver, text):
     roman_text = re.sub(r"[^\w\s,.]", "", roman_text)
     roman_text = re.sub(r"\s+", " ", roman_text).strip()
 
+    # Update progress bar if provided
+    if pbar:
+        pbar.update(1)
+
     return roman_text
 
 def process_csv(input_csv_path, output_csv_path):
@@ -111,20 +116,35 @@ def process_csv(input_csv_path, output_csv_path):
     driver = webdriver.Chrome(options=options)
 
     try:
+        # Read CSV with progress bar
+        print("Reading CSV file...")
         df = pd.read_csv(input_csv_path, sep="|", header=None, names=["ID", "Sinhala_Text", "Romanized_Text"])
+        
+        print(f"Loaded {len(df)} rows from CSV")
+        
+        # Initialize progress bar for processing
+        print("Processing Sinhala text...")
+        with tqdm(total=len(df), desc="Converting text", unit="rows") as pbar:
+            df["Romanized_Text"] = df["Sinhala_Text"].apply(
+                lambda text: preprocess_sinhala_text(driver, text, pbar)
+            )
 
-        # Process each row
-        df["Preprocessed_Text"] = df["Sinhala_Text"].apply(lambda text: preprocess_sinhala_text(driver, text))
-
+        # Save with progress indication
+        print("Saving processed CSV...")
         df.to_csv(output_csv_path, sep="|", index=False, header=False)
         logging.info(f"Processed CSV saved to {output_csv_path}")
+        print(f"✅ Processing completed successfully!")
 
+    except Exception as e:
+        logging.error(f"Error processing CSV: {e}")
+        print(f"❌ Error occurred: {e}")
     finally:
         driver.quit()
 
 # Example Usage
-input_csv = "E:/UOM/FYP/TTSx/Data/Dinithi/combined_transcription.csv"
-output_csv = "E:/UOM/FYP/TTSx/Data/Dinithi/metadata_preprocessed.csv"
+if __name__ == "__main__":
+    input_csv = "E:/UOM/FYP/TTSx/Data/Recording/Isuru_Gunarathne/chunk_8_300.csv"
+    output_csv = "E:/UOM/FYP/TTSx/Data/Recording/Isuru_Gunarathne/chunk_8_300Cleaned.csv"
 
-process_csv(input_csv, output_csv)
-print(f"Processing completed. Saved to {output_csv}")
+    process_csv(input_csv, output_csv)
+    print(f"Processing completed. Saved to {output_csv}")
