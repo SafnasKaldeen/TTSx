@@ -118,7 +118,9 @@ def process_csv(input_csv_path, output_csv_path):
     try:
         # Read CSV with progress bar
         print("Reading CSV file...")
-        df = pd.read_csv(input_csv_path, sep="|", header=None, names=["ID", "Sinhala_Text", "Romanized_Text"])
+        df = pd.read_csv(input_csv_path, sep="|", header=None, names=["ID", "Sinhala_Text"])
+        # df = pd.read_csv(input_csv_path, sep="|", header=None, names=["ID", "Sinhala_Text", "Romanized_Text"])
+
         
         print(f"Loaded {len(df)} rows from CSV")
         
@@ -143,8 +145,8 @@ def process_csv(input_csv_path, output_csv_path):
 
 # Example Usage
 if __name__ == "__main__":
-    input_csv = "E:/UOM/FYP/TTSx/Data/Recording/Isuru_Gunarathne/chunk_8_300.csv"
-    output_csv = "E:/UOM/FYP/TTSx/Data/Recording/Isuru_Gunarathne/chunk_8_300Cleaned.csv"
+    input_csv = "E:/UOM/FYP/TTSx/Data/YY/metadata.csv"
+    output_csv = "E:/UOM/FYP/TTSx/Data/YY/metadataCleaned.csv"
 
     process_csv(input_csv, output_csv)
     print(f"Processing completed. Saved to {output_csv}")
