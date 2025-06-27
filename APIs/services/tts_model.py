@@ -31,10 +31,10 @@ class TTSModel:
         Load the pre-trained TTS model using Coqui TTS based on the speakerID.
         Here, you should modify this to select the appropriate model file.
         """
-        # self.model_path = f"E:/UOM/FYP/TTSx/Model/{self.speakerID}/best_model.pth"
-        # self.config_path = f"E:/UOM/FYP/TTSx/Model/{self.speakerID}/config.json"
-        self.model_path = f"E:/UOM/FYP/TTSx/Model/LJ_Dinithi/best_model.pth"
-        self.config_path = f"E:/UOM/FYP/TTSx/Model/LJ_Dinithi/config.json"
+        self.model_path = f"E:/UOM/FYP/TTSx/Model/{self.speakerID}/best_model.pth"
+        self.config_path = f"E:/UOM/FYP/TTSx/Model/{self.speakerID}/config.json"
+        # self.model_path = f"E:/UOM/FYP/TTSx/Model/LJ_Dinithi/best_model.pth"
+        # self.config_path = f"E:/UOM/FYP/TTSx/Model/LJ_Dinithi/config.json"
         self.out_path = f"E:/UOM/FYP/TTSx/UI/client/public/Audios/InitialInference.wav"
     
         try:
@@ -54,7 +54,7 @@ class TTSModel:
         Generates speech from the input text using the loaded TTS model.
         Returns the audio as bytes (e.g., WAV format).
         """
-        
+        print(f"Model Path: {self.model_path}")
         try:    
             # Construct and execute the command
             command = (

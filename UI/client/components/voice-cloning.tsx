@@ -967,12 +967,12 @@ export function VoiceCloning({
                   <span className="bg-purple-600 rounded-full w-6 h-6 inline-flex items-center justify-center mr-2">
                     1
                   </span>
-                  Reference Audio Sample
+                  Input Audio Sample
                 </h3>
 
                 <p className="text-white/80 text-sm mb-4">
-                  Provide the reference audio sample for voice cloning. This
-                  could be your voice or a generated audio.
+                  Provide the input audio sample for voice cloning. This could
+                  be your voice or a generated audio.
                 </p>
 
                 {recordingState1 === "idle" && !audioUrl1 && (

@@ -145,8 +145,8 @@ def process_csv(input_csv_path, output_csv_path):
 
 # Example Usage
 if __name__ == "__main__":
-    input_csv = "E:/UOM/FYP/TTSx/Data/YY/metadata.csv"
-    output_csv = "E:/UOM/FYP/TTSx/Data/YY/metadataCleaned.csv"
+    input_csv = "E:/UOM/FYP/TTSx/Data/Dataset Pulication/Harini-44100/metadata.csv"
+    output_csv = "E:/UOM/FYP/TTSx/Data/Dataset Pulication/Harini-44100/metadataCleaned.csv"
 
     process_csv(input_csv, output_csv)
     print(f"Processing completed. Saved to {output_csv}")

@@ -3,63 +3,99 @@
 import { useEffect, useState } from "react";
 import { Star, Download } from "lucide-react";
 import { cn } from "@/lib/utils";
+import Cookies from "js-cookie";
 
 interface VoiceRatingProps {
   label?: string;
   size?: "sm" | "md" | "lg";
   showFeedback?: boolean;
+  voiceId: string;
 }
+
+type RatingsStore = {
+  [voiceId: string]: number[];
+};
+
+type UserRatings = {
+  [voiceId: string]: number;
+};
 
 export function VoiceRating({
   label = "Rate this voice",
   size = "md",
   showFeedback = true,
+  voiceId,
 }: VoiceRatingProps) {
-  const [rating, setRating] = useState<number>(0);
+  const [rating, setRating] = useState<number>(4.21);
   const [hoverRating, setHoverRating] = useState<number>(0);
-  const [hasRated, setHasRated] = useState<boolean>(false);
-  const [ratings, setRatings] = useState<number[]>([]);
+  const [ratingsStore, setRatingsStore] = useState<RatingsStore>({});
 
-  // Load rating data from localStorage on mount
+  const ratingsCookieKey = "all_voice_ratings";
+  const userRatingCookieKey = "user_voice_ratings";
+  const cookieOptions = { expires: 30 }; // 30 days
+
+  // Helper to encode voiceId consistently
+  const formatVoiceId = (id: string) => encodeURIComponent(id.trim());
+
+  const formattedVoiceId = formatVoiceId(voiceId);
+
+  // Load cookies on mount or when voiceId changes
   useEffect(() => {
-    const storedRatings = localStorage.getItem("voice_ratings");
-    const storedUserRating = localStorage.getItem("user_rating");
-    const storedHasRated = localStorage.getItem("has_rated");
+    const allRatings = Cookies.get(ratingsCookieKey);
+    const userRatings = Cookies.get(userRatingCookieKey);
 
-    if (storedRatings) {
-      setRatings(JSON.parse(storedRatings));
+    if (allRatings) {
+      const parsed = JSON.parse(allRatings) as RatingsStore;
+      console.log("All Ratings Keys:", Object.keys(parsed));
+      setRatingsStore(parsed);
     }
 
-    if (storedUserRating) {
-      setRating(Number(storedUserRating));
+    if (userRatings) {
+      const parsed = JSON.parse(userRatings) as UserRatings;
+      if (parsed[formattedVoiceId]) {
+        console.log("User rating for this voiceId:", parsed[formattedVoiceId]);
+        setRating(parsed[formattedVoiceId]);
+      } else {
+        console.log("No user rating found for", formattedVoiceId);
+      }
     }
-
-    if (storedHasRated === "true") {
-      setHasRated(true);
-    }
-  }, []);
-
-  // Save ratings array to localStorage
-  useEffect(() => {
-    localStorage.setItem("voice_ratings", JSON.stringify(ratings));
-  }, [ratings]);
-
-  // Save rating and hasRated state
-  useEffect(() => {
-    localStorage.setItem("user_rating", rating.toString());
-    localStorage.setItem("has_rated", hasRated.toString());
-  }, [rating, hasRated]);
+  }, [formattedVoiceId]);
 
   const handleRating = (value: number) => {
-    if (hasRated) return;
     setRating(value);
-    setHasRated(true);
-    const newRatings = [...ratings, value];
-    setRatings(newRatings);
+
+    // Update user rating
+    const userRatings = JSON.parse(
+      Cookies.get(userRatingCookieKey) || "{}"
+    ) as UserRatings;
+    userRatings[formattedVoiceId] = value;
+    Cookies.set(
+      userRatingCookieKey,
+      JSON.stringify(userRatings),
+      cookieOptions
+    );
+
+    // Update overall ratings
+    const allRatings = JSON.parse(
+      Cookies.get(ratingsCookieKey) || "{}"
+    ) as RatingsStore;
+
+    if (!allRatings[formattedVoiceId]) {
+      allRatings[formattedVoiceId] = [];
+    }
+    allRatings[formattedVoiceId].push(value);
+    Cookies.set(ratingsCookieKey, JSON.stringify(allRatings), cookieOptions);
+
+    setRatingsStore(allRatings); // Update UI
   };
 
+  const average =
+    ratingsStore[formattedVoiceId]?.length > 0
+      ? ratingsStore[formattedVoiceId].reduce((sum, r) => sum + r, 0) /
+        ratingsStore[formattedVoiceId].length
+      : 0;
+
   const getFeedbackText = () => {
-    if (!hasRated) return "";
     if (rating <= 1) return "Poor quality";
     if (rating <= 2) return "Needs improvement";
     if (rating <= 3) return "Average quality";
@@ -67,18 +103,13 @@ export function VoiceRating({
     return "Excellent quality";
   };
 
-  const average =
-    ratings.length > 0
-      ? ratings.reduce((sum, r) => sum + r, 0) / ratings.length
-      : 0;
-
   const downloadCSV = () => {
-    const csvContent =
-      "data:text/csv;charset=utf-8,rating\n" + ratings.join("\n");
-    const encodedUri = encodeURI(csvContent);
+    const rows = ratingsStore[formattedVoiceId] || [];
+    const csv = "data:text/csv;charset=utf-8,rating\n" + rows.join("\n");
+    const encoded = encodeURI(csv);
     const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", "voice_ratings.csv");
+    link.setAttribute("href", encoded);
+    link.setAttribute("download", `voice_ratings_${voiceId}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -94,7 +125,7 @@ export function VoiceRating({
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <p className="text-sm text-white/80">{label}</p>
-        {showFeedback && hasRated && (
+        {showFeedback && rating > 0 && (
           <span
             className={cn(
               "text-xs px-2 py-1 rounded-full",
@@ -118,12 +149,7 @@ export function VoiceRating({
             onClick={() => handleRating(value)}
             onMouseEnter={() => setHoverRating(value)}
             onMouseLeave={() => setHoverRating(0)}
-            disabled={hasRated}
-            className={cn(
-              "focus:outline-none transition-transform",
-              !hasRated && "hover:scale-110",
-              hasRated && "cursor-not-allowed"
-            )}
+            className="focus:outline-none transition-transform hover:scale-110"
           >
             <Star
               className={cn(
@@ -145,7 +171,8 @@ export function VoiceRating({
       </div>
 
       <div className="text-xs text-white/60">
-        Average Rating: {average.toFixed(2)} ({ratings.length} votes)
+        Average Rating: {average.toFixed(2)} (
+        {ratingsStore[formattedVoiceId]?.length || 0} votes)
       </div>
 
       <button

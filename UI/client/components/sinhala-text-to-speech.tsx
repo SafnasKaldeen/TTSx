@@ -64,6 +64,8 @@ export function SinhalaTextToSpeech({
   const [isDenoised, setIsDenoised] = useState<boolean>(true);
   const [voiceRating, setVoiceRating] = useState<number>(0);
 
+  const [selectedVoice, setSelectedVoice] = useState("LJ_Oshadi");
+
   const containerRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
 
@@ -74,7 +76,7 @@ export function SinhalaTextToSpeech({
 
   const handleGenerate = async () => {
     if (!text.trim()) return;
-    const speakerID = useClonedVoice ? "cloned_speaker" : "default";
+    const speakerID = useClonedVoice ? "cloned_speaker" : selectedVoice;
 
     setIsGenerated(false);
     setProgress(0);
@@ -326,12 +328,16 @@ export function SinhalaTextToSpeech({
                   <div className="flex justify-between">
                     <Label htmlFor="voice">Voice</Label>
                   </div>
-                  <Select defaultValue={useClonedVoice ? "cloned" : "female1"}>
+                  <Select
+                    value={selectedVoice}
+                    onValueChange={(value) => setSelectedVoice(value)}
+                    defaultValue={useClonedVoice ? "cloned" : "Oshadi"}
+                  >
                     <SelectTrigger className="bg-white/20 border-white/20 text-white focus:ring-purple-500/25 focus:ring-offset-0 focus:border-purple-500/50 focus:ring-2">
                       <SelectValue placeholder="Select voice" />
                     </SelectTrigger>
                     <SelectContent>
-                      {useClonedVoice && (
+                      {/* {useClonedVoice && (
                         <SelectItem value="cloned">
                           <div className="flex items-center">
                             <span className="mr-2">Your Cloned Voice</span>
@@ -340,11 +346,47 @@ export function SinhalaTextToSpeech({
                             </span>
                           </div>
                         </SelectItem>
-                      )}
-                      <SelectItem value="LJ_Dinithi">Dinithi</SelectItem>
-                      <SelectItem value="LJ_Oshadi">Oshadi</SelectItem>
-                      <SelectItem value="LJ_Isuru">Isuru</SelectItem>
-                      <SelectItem value="LJ_Mettananda">Mettananda</SelectItem>
+                      )} */}
+                      <SelectItem value="LJ_Dinithi">
+                        <div className="flex items-center justify-between w-full">
+                          <span>Dinithi</span>
+                          <div className="flex items-center gap-1">
+                            <span className="text-xs mx-4 bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded-full">
+                              Female
+                            </span>
+                          </div>
+                        </div>
+                      </SelectItem>
+
+                      <SelectItem value="LJ_Oshadi">
+                        <div className="flex items-center justify-between w-full">
+                          <span>Oshadi</span>
+                          <span className="text-xs mx-4 bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded-full">
+                            Female
+                          </span>
+                          <span className="text-xs bg-purple-500/20 text-purple-300 px-2 py-0.5 rounded-full">
+                            Default
+                          </span>
+                        </div>
+                      </SelectItem>
+
+                      <SelectItem value="LJ_Isuru">
+                        <div className="flex items-center justify-between w-full">
+                          <span>Isuru</span>
+                          <span className="text-xs mx-4 bg-cyan-500/20 text-cyan-300 px-2 py-0.5 rounded-full">
+                            Male
+                          </span>
+                        </div>
+                      </SelectItem>
+
+                      <SelectItem value="LJ_Mettananda">
+                        <div className="flex items-center justify-between w-full">
+                          <span>Mettananda</span>
+                          <span className="text-xs mx-4 bg-cyan-500/20 text-cyan-300 px-2 py-0.5 rounded-full">
+                            Male
+                          </span>
+                        </div>
+                      </SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -619,6 +661,7 @@ export function SinhalaTextToSpeech({
               {/* Voice rating section */}
               <div className="bg-white/10 rounded-xl p-4 mb-6">
                 <VoiceRating
+                  voiceId={selectedVoice}
                   label={`Rate this ${
                     useClonedVoice ? "cloned" : "generated"
                   } voice`}
