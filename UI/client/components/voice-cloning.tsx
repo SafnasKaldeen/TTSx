@@ -154,7 +154,7 @@ export function VoiceCloning({
         setCloningStep(0);
       }
 
-      // Automatically populate the first audio input with the generated audio
+      // Automatically populate the reference audio input with the generated audio
       setAudioUrl1(audioForCloning);
       setRecordingState1("processing"); // Show processing state while handling the TTS audio
 
@@ -246,7 +246,7 @@ export function VoiceCloning({
     }
   };
 
-  // Handle file upload for first audio input (reference audio)
+  // Handle file upload for reference audio input (reference audio)
   const handleFileUpload1 = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -318,7 +318,7 @@ export function VoiceCloning({
       setTargetAudioPaths((prev) => [...prev, ...newPaths]);
       setRecordingState2("ready");
 
-      // Auto-expand the first new sample if none are expanded
+      // Auto-expand the reference new sample if none are expanded
       if (expandedSampleId === null && newSamples.length > 0) {
         setExpandedSampleId(newSamples[0].id);
       }
@@ -439,7 +439,7 @@ export function VoiceCloning({
     }
   };
 
-  // Start recording for first audio input
+  // Start recording for reference audio input
   const startRecording1 = async () => {
     // Reset cloning state if already cloned
     if (voiceCloned) {
@@ -499,7 +499,7 @@ export function VoiceCloning({
     }, 1000);
   };
 
-  // Pause recording for first audio input
+  // Pause recording for reference audio input
   const pauseRecording1 = () => {
     if (mediaRecorder1 && mediaRecorder1.state === "recording") {
       mediaRecorder1.pause();
@@ -525,7 +525,7 @@ export function VoiceCloning({
     }
   };
 
-  // Resume recording for first audio input
+  // Resume recording for reference audio input
   const resumeRecording1 = () => {
     if (mediaRecorder1 && mediaRecorder1.state === "paused") {
       mediaRecorder1.resume();
@@ -561,7 +561,7 @@ export function VoiceCloning({
     }, 1000);
   };
 
-  // Stop recording for first audio input
+  // Stop recording for reference audio input
   const stopRecording1 = () => {
     if (timerRef1.current) {
       clearInterval(timerRef1.current);
@@ -603,7 +603,7 @@ export function VoiceCloning({
     // The actual upload happens in the onstop event handler of the mediaRecorder
   };
 
-  // Reset first audio input
+  // Reset reference audio input
   const resetAudio1 = () => {
     setRecordingState1("idle");
     setAudioUrl1(null);
@@ -961,18 +961,18 @@ export function VoiceCloning({
             </div>
           ) : !voiceCloned ? (
             <div className="space-y-6">
-              {/* First Audio Input */}
+              {/* Reference Audio Input */}
               <div className="border-2 border-dashed border-white/30 rounded-2xl p-6">
                 <h3 className="font-medium mb-4 flex items-center">
                   <span className="bg-purple-600 rounded-full w-6 h-6 inline-flex items-center justify-center mr-2">
                     1
                   </span>
-                  First Audio Sample
+                  Reference Audio Sample
                 </h3>
 
                 <p className="text-white/80 text-sm mb-4">
-                  Provide the first audio sample for voice cloning. This could
-                  be your voice or a generated audio.
+                  Provide the reference audio sample for voice cloning. This
+                  could be your voice or a generated audio.
                 </p>
 
                 {recordingState1 === "idle" && !audioUrl1 && (
@@ -1147,7 +1147,7 @@ export function VoiceCloning({
                     <span className="bg-purple-600 rounded-full w-6 h-6 inline-flex items-center justify-center mr-2">
                       2
                     </span>
-                    Additional Audio Samples ({audioSamples.length})
+                    Target Audio Sample(s) ({audioSamples.length})
                   </h3>
                   <Button
                     variant="ghost"
@@ -1565,7 +1565,7 @@ export function VoiceCloning({
               </div>
 
               {/* Voice rating section */}
-              <div className="bg-white/10 rounded-xl p-4 mb-6">
+              {/* <div className="bg-white/10 rounded-xl p-4 mb-6">
                 <div className="flex items-center mb-2">
                   <div className="bg-purple-500/20 p-1 rounded-full mr-2">
                     <Sparkles className="h-4 w-4 text-purple-300" />
@@ -1607,7 +1607,7 @@ export function VoiceCloning({
                     cloning technology.
                   </p>
                 )}
-              </div>
+              </div> */}
 
               <div className="space-y-4 mb-6">
                 <h3 className="font-medium mb-2">Voice Settings</h3>

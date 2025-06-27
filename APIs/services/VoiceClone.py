@@ -16,10 +16,14 @@ BLUE = "\033[94m"
 
 class VoiceCloner:
     def __init__(self, referenceWAV: str, targetWAV: str):
-        self.referenceWAV = referenceWAV
-        self.primary_target_audio = targetWAV
-        self.target_folder = os.path.dirname(targetWAV)  # Extract folder
+        self.original_referenceWAV = referenceWAV
+        self.original_targetWAV = targetWAV
+
+        self.target_folder = os.path.dirname(targetWAV)
         self.combined_target_path = os.path.join(self.target_folder, "combined_target.wav")
+        self.downsampled_reference_path = os.path.join(self.target_folder, "ref_16k.wav")
+        self.downsampled_target_path = os.path.join(self.target_folder, "tgt_16k.wav")
+
         self.model = self.load_model()
 
     def load_model(self):
@@ -37,18 +41,32 @@ class VoiceCloner:
             logger.error(f"Model load failed: {e}")
             raise
 
+    def downsample_audio(self, input_path, output_path, sample_rate=16000):
+        try:
+            cmd = [
+                "ffmpeg", "-y", "-i", input_path,
+                "-ar", str(sample_rate),
+                output_path
+            ]
+            subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            logger.info(f"Downsampled audio saved to: {output_path}")
+            return output_path
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Downsampling failed for {input_path}: {e}")
+            raise
+
     def combine_target_audio(self):
         try:
             all_wavs = [
                 f for f in os.listdir(self.target_folder)
                 if f.endswith(".wav") and
-                   os.path.abspath(os.path.join(self.target_folder, f)) != os.path.abspath(self.referenceWAV) and
-                   os.path.abspath(os.path.join(self.target_folder, f)) != os.path.abspath(self.primary_target_audio)
+                   os.path.abspath(os.path.join(self.target_folder, f)) != os.path.abspath(self.original_referenceWAV) and
+                   os.path.abspath(os.path.join(self.target_folder, f)) != os.path.abspath(self.original_targetWAV)
             ]
 
             if not all_wavs:
                 logger.info("Only primary target audio present. Skipping combination.")
-                return self.primary_target_audio
+                return self.original_targetWAV
 
             elif len(all_wavs) == 1:
                 single_file_path = os.path.join(self.target_folder, all_wavs[0])
@@ -78,13 +96,18 @@ class VoiceCloner:
 
     def clone_speech(self):
         try:
-            self.targetWAV = self.combine_target_audio()
+            # Combine if needed and get actual targetWAV
+            final_target_path = self.combine_target_audio()
+
+            # Downsample reference and target
+            downsampled_ref = self.downsample_audio(self.original_referenceWAV, self.downsampled_reference_path)
+            downsampled_tgt = self.downsample_audio(final_target_path, self.downsampled_target_path)
 
             command = (
-                f'tts --reference_wav "{self.referenceWAV}" '
+                f'tts --reference_wav "{downsampled_ref}" '
                 f'--model_path "{self.model_path}" '
                 f'--config_path "{self.config_path}" '
-                f'--speaker_wav "{self.targetWAV}" '
+                f'--speaker_wav "{downsampled_tgt}" '
                 f'--out_path "{self.out_path}" '
                 f'--language_idx "en" '
             )
@@ -123,3 +146,4 @@ class VoiceCloner:
 # primary_target_audio = "E:/UOM/FYP/TTSx/APIs/Audios/SpeakerReference.wav"
 # cloner = VoiceCloner(referenceWAV, primary_target_audio)
 # result = cloner.clone_speech()
+# print(result)
